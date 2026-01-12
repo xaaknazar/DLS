@@ -54,8 +54,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center overflow-hidden">
-            <img src="/logo.jpg" alt="DLS" className="w-10 h-10 object-contain" />
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center overflow-hidden">
+            <span className="text-white font-bold text-2xl">D</span>
           </div>
           <h1 className="text-xl font-bold text-white">Divergents Leadership School</h1>
         </div>
