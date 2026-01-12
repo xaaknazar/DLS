@@ -6,6 +6,7 @@ import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { useState } from 'react';
+import { getShopItemById } from '@/data/shop';
 import {
   Trophy,
   Medal,
@@ -148,15 +149,33 @@ export default function LeaderboardPage() {
 
                   {/* Avatar & Name */}
                   <div className="flex items-center gap-3 flex-1">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                        isCurrentUser
-                          ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
-                          : 'bg-gray-700 text-gray-300'
-                      }`}
-                    >
-                      {student.name.charAt(0)}
-                    </div>
+                    {(() => {
+                      const avatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
+                      const frameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
+
+                      if (avatarItem) {
+                        return (
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg
+                            bg-gradient-to-br ${avatarItem.gradient}
+                            ${frameItem?.borderColor || ''}
+                          `}>
+                            {avatarItem.emoji}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                            isCurrentUser
+                              ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
+                              : 'bg-gray-700 text-gray-300'
+                          }`}
+                        >
+                          {student.name.charAt(0)}
+                        </div>
+                      );
+                    })()}
                     <div>
                       <p className="font-medium text-white">
                         {student.name}

@@ -4,8 +4,8 @@ import { Toaster } from "react-hot-toast";
 import DataProvider from "@/components/providers/DataProvider";
 
 export const metadata: Metadata = {
-  title: "DLS - IT | Платформа для изучения Python",
-  description: "Интерактивная платформа для обучения Python. Задачи, темы, проверка кода.",
+  title: "Divergents Leadership School | Informatics",
+  description: "Интерактивная платформа для обучения информатике. Задачи, темы, проверка кода.",
 };
 
 export default function RootLayout({

@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
+import { Student } from '@/types';
+import { getShopItemById } from '@/data/shop';
 import {
   Home,
   BookOpen,
@@ -15,6 +17,7 @@ import {
   LogOut,
   GraduationCap,
   MessageCircle,
+  ShoppingBag,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -23,6 +26,7 @@ const studentNavItems = [
   { href: '/student/problems', label: 'Задачи', icon: Code },
   { href: '/student/leaderboard', label: 'Рейтинг', icon: Trophy },
   { href: '/student/achievements', label: 'Достижения', icon: Award },
+  { href: '/student/shop', label: 'Магазин', icon: ShoppingBag },
   { href: '/student/chat', label: 'Чат с учителем', icon: MessageCircle },
 ];
 
@@ -47,12 +51,12 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-gray-800">
         <Link href={user.role === 'teacher' ? '/teacher' : '/student'} className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <GraduationCap className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center overflow-hidden">
+            <span className="text-white font-bold text-lg">D</span>
           </div>
           <div>
-            <h1 className="font-bold text-white">DLS - IT</h1>
-            <p className="text-xs text-gray-500">Учим Python</p>
+            <h1 className="font-bold text-white text-sm">Divergents Leadership School</h1>
+            <p className="text-xs text-gray-500">Informatics</p>
           </div>
         </Link>
       </div>
@@ -61,7 +65,12 @@ export default function Sidebar() {
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          // For home pages (/student, /teacher), only exact match
+          // For other pages, also match subpaths
+          const isHome = item.href === '/student' || item.href === '/teacher';
+          const isActive = isHome
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(item.href + '/');
 
           return (
             <Link
@@ -84,13 +93,31 @@ export default function Sidebar() {
       {/* User Info */}
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
-            {user.name.charAt(0)}
-          </div>
+          {(() => {
+            if (user.role === 'student') {
+              const student = user as Student;
+              const avatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
+              const frameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
+
+              return (
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg
+                  ${avatarItem ? `bg-gradient-to-br ${avatarItem.gradient}` : 'bg-gradient-to-br from-green-500 to-emerald-600'}
+                  ${frameItem?.borderColor || ''}
+                `}>
+                  {avatarItem?.emoji || <span className="text-white font-bold">{user.name.charAt(0)}</span>}
+                </div>
+              );
+            }
+            return (
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+                {user.name.charAt(0)}
+              </div>
+            );
+          })()}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
             <p className="text-xs text-gray-500 truncate">
-              {user.role === 'teacher' ? 'Учитель' : `${(user as any).grade} класс`}
+              {user.role === 'teacher' ? 'Учитель' : `${(user as Student).grade} класс`}
             </p>
           </div>
         </div>

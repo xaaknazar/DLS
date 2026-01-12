@@ -20,6 +20,10 @@ export interface Student extends User {
   achievements: string[];
   streakDays: number;
   lastActiveAt: Date;
+  // Shop items
+  purchasedItems: string[];
+  equippedAvatar: string | null;
+  equippedFrame: string | null;
 }
 
 export interface Teacher extends User {
