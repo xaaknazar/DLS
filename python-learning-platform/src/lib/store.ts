@@ -81,8 +81,8 @@ export const useStore = create<AppState>()(
       },
 
       updateStudentProgress: (studentId: string, problemId: string, points: number) => {
-        set((state) => ({
-          students: state.students.map((s) =>
+        set((state) => {
+          const updatedStudents = state.students.map((s) =>
             s.id === studentId
               ? {
                   ...s,
@@ -95,8 +95,18 @@ export const useStore = create<AppState>()(
                   lastActiveAt: new Date(),
                 }
               : s
-          ),
-        }));
+          );
+
+          // Also update user if it's the logged in student
+          const updatedUser = state.user?.id === studentId
+            ? updatedStudents.find(s => s.id === studentId)
+            : state.user;
+
+          return {
+            students: updatedStudents,
+            user: updatedUser || state.user,
+          };
+        });
       },
 
       // Submissions
@@ -121,7 +131,7 @@ export const useStore = create<AppState>()(
       setSelectedGrade: (grade: number) => set({ selectedGrade: grade }),
     }),
     {
-      name: 'python-learning-storage',
+      name: 'dls-it-storage',
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
