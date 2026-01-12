@@ -10,6 +10,13 @@ export default function DataProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     const init = async () => {
+      // Initialize database first
+      try {
+        await fetch('/api/init');
+      } catch (e) {
+        console.log('Init error:', e);
+      }
+
       // First, try to restore session
       await refreshUser();
 

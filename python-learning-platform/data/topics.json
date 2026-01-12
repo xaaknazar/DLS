@@ -1,0 +1,181 @@
+[
+  {
+    "id": "variables",
+    "title": "Variables",
+    "titleRu": "Переменные",
+    "description": "Learn about variables and data types",
+    "descriptionRu": "Изучение переменных и типов данных",
+    "order": 1,
+    "icon": "Variable",
+    "color": "blue",
+    "grades": [
+      7,
+      8,
+      9,
+      10
+    ],
+    "problemIds": [
+      "var-1",
+      "var-2",
+      "var-3"
+    ],
+    "documentation": "# Переменные в Python\n\n## Что такое переменная?\n\nПеременная — это именованная область памяти, которая хранит данные.\n\n## Создание переменных\n\n```python\nname = \"Иван\"\nage = 15\nheight = 1.75\nis_student = True\n```\n\n## Типы данных\n\n- **str** — строки\n- **int** — целые числа\n- **float** — дробные числа\n- **bool** — логические значения (True/False)\n"
+  },
+  {
+    "id": "input-output",
+    "title": "Input/Output",
+    "titleRu": "Ввод/Вывод",
+    "description": "Learn about input and output",
+    "descriptionRu": "Изучение ввода и вывода данных",
+    "order": 2,
+    "icon": "Terminal",
+    "color": "green",
+    "grades": [
+      7,
+      8,
+      9,
+      10
+    ],
+    "problemIds": [
+      "io-1",
+      "io-2"
+    ],
+    "documentation": "# Ввод и вывод в Python\n\n## Вывод данных - print()\n\n```python\nprint(\"Привет, мир!\")\nprint(\"Меня зовут\", name)\n```\n\n## Ввод данных - input()\n\n```python\nname = input(\"Как тебя зовут? \")\nage = int(input(\"Сколько тебе лет? \"))\n```\n"
+  },
+  {
+    "id": "conditions",
+    "title": "Conditions",
+    "titleRu": "Условия",
+    "description": "Learn about conditional statements",
+    "descriptionRu": "Изучение условных операторов",
+    "order": 3,
+    "icon": "GitBranch",
+    "color": "yellow",
+    "grades": [
+      7,
+      8,
+      9,
+      10
+    ],
+    "problemIds": [
+      "cond-1",
+      "cond-2"
+    ],
+    "documentation": "# Условные операторы\n\n## if, elif, else\n\n```python\nage = 18\n\nif age < 18:\n    print(\"Несовершеннолетний\")\nelif age == 18:\n    print(\"Только исполнилось 18!\")\nelse:\n    print(\"Совершеннолетний\")\n```\n\n## Операторы сравнения\n\n- `==` — равно\n- `!=` — не равно\n- `<`, `>` — меньше, больше\n- `<=`, `>=` — меньше или равно, больше или равно\n"
+  },
+  {
+    "id": "loops",
+    "title": "Loops",
+    "titleRu": "Циклы",
+    "description": "Learn about loops",
+    "descriptionRu": "Изучение циклов",
+    "order": 4,
+    "icon": "RefreshCw",
+    "color": "purple",
+    "grades": [
+      7,
+      8,
+      9,
+      10
+    ],
+    "problemIds": [
+      "loop-1",
+      "loop-2"
+    ],
+    "documentation": "# Циклы в Python\n\n## Цикл for\n\n```python\nfor i in range(5):\n    print(i)  # 0, 1, 2, 3, 4\n\nfor letter in \"Python\":\n    print(letter)\n```\n\n## Цикл while\n\n```python\ncount = 0\nwhile count < 5:\n    print(count)\n    count += 1\n```\n"
+  },
+  {
+    "id": "lists",
+    "title": "Lists",
+    "titleRu": "Списки",
+    "description": "Learn about lists",
+    "descriptionRu": "Изучение списков",
+    "order": 5,
+    "icon": "List",
+    "color": "orange",
+    "grades": [
+      8,
+      9,
+      10
+    ],
+    "problemIds": [
+      "list-1",
+      "list-2"
+    ],
+    "documentation": "# Списки в Python\n\n## Создание списка\n\n```python\nnumbers = [1, 2, 3, 4, 5]\nnames = [\"Анна\", \"Борис\", \"Вика\"]\nmixed = [1, \"два\", 3.0, True]\n```\n\n## Операции со списками\n\n```python\nnumbers.append(6)     # Добавить элемент\nnumbers.remove(3)     # Удалить элемент\nprint(numbers[0])     # Первый элемент\nprint(len(numbers))   # Длина списка\n```\n"
+  },
+  {
+    "id": "functions",
+    "title": "Functions",
+    "titleRu": "Функции",
+    "description": "Learn about functions",
+    "descriptionRu": "Изучение функций",
+    "order": 6,
+    "icon": "Code",
+    "color": "pink",
+    "grades": [
+      8,
+      9,
+      10
+    ],
+    "problemIds": [
+      "func-1",
+      "func-2"
+    ],
+    "documentation": "# Функции в Python\n\n## Создание функции\n\n```python\ndef greet(name):\n    return f\"Привет, {name}!\"\n\nmessage = greet(\"Мир\")\nprint(message)\n```\n\n## Функция с несколькими параметрами\n\n```python\ndef add(a, b):\n    return a + b\n\nresult = add(5, 3)\n```\n"
+  },
+  {
+    "id": "strings",
+    "title": "Strings",
+    "titleRu": "Строки",
+    "description": "Learn about string operations",
+    "descriptionRu": "Изучение операций со строками",
+    "order": 7,
+    "icon": "Type",
+    "color": "cyan",
+    "grades": [
+      9,
+      10
+    ],
+    "problemIds": [
+      "str-1",
+      "str-2"
+    ],
+    "documentation": "# Строки в Python\n\n## Методы строк\n\n```python\ntext = \"  Привет, Python!  \"\nprint(text.upper())      # ПРИВЕТ, PYTHON!\nprint(text.lower())      # привет, python!\nprint(text.strip())      # Привет, Python!\nprint(text.replace(\"Python\", \"Мир\"))\n```\n\n## Срезы строк\n\n```python\ntext = \"Python\"\nprint(text[0])      # P\nprint(text[-1])     # n\nprint(text[0:3])    # Pyt\nprint(text[::-1])   # nohtyP\n```\n"
+  },
+  {
+    "id": "dictionaries",
+    "title": "Dictionaries",
+    "titleRu": "Словари",
+    "description": "Learn about dictionaries",
+    "descriptionRu": "Изучение словарей",
+    "order": 8,
+    "icon": "Book",
+    "color": "red",
+    "grades": [
+      9,
+      10
+    ],
+    "problemIds": [
+      "dict-1"
+    ],
+    "documentation": "# Словари в Python\n\n## Создание словаря\n\n```python\nstudent = {\n    \"name\": \"Иван\",\n    \"age\": 15,\n    \"grade\": 9\n}\n```\n\n## Работа со словарём\n\n```python\nprint(student[\"name\"])      # Иван\nstudent[\"city\"] = \"Москва\"  # Добавить\ndel student[\"age\"]          # Удалить\n```\n"
+  },
+  {
+    "id": "classes",
+    "title": "Classes",
+    "titleRu": "Классы",
+    "description": "Learn about OOP and classes",
+    "descriptionRu": "Изучение ООП и классов",
+    "order": 9,
+    "icon": "Box",
+    "color": "indigo",
+    "grades": [
+      10
+    ],
+    "problemIds": [
+      "class-1"
+    ],
+    "documentation": "# Классы в Python\n\n## Создание класса\n\n```python\nclass Student:\n    def __init__(self, name, grade):\n        self.name = name\n        self.grade = grade\n\n    def introduce(self):\n        return f\"Я {self.name}, {self.grade} класс\"\n\nstudent = Student(\"Иван\", 10)\nprint(student.introduce())\n```\n"
+  }
+]
