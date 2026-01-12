@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
+import { achievements } from '@/data/achievements';
 
 // API helper functions
 async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
@@ -222,19 +223,91 @@ export const useStore = create<AppState>((set, get) => ({
     });
     set((state) => ({ submissions: [newSubmission, ...state.submissions] }));
 
-    // If passed, update student's completed problems in local state
+    // If passed, update student's completed problems in local state and check achievements
     if (submission.status === 'passed' && submission.studentId) {
-      const { user, students } = get();
+      const { user, problems } = get();
       if (user && user.id === submission.studentId && 'completedProblems' in user) {
+        // Get problem to add its points
+        const problem = problems.find(p => p.id === submission.problemId);
+        const problemPoints = problem?.points || 0;
+
+        const newCompletedProblems = user.completedProblems.includes(submission.problemId!)
+          ? user.completedProblems
+          : [...user.completedProblems, submission.problemId!];
+
+        const wasNewProblem = !user.completedProblems.includes(submission.problemId!);
+        const newPoints = wasNewProblem ? user.points + problemPoints : user.points;
+
+        // Check and award achievements
+        const currentAchievements = [...user.achievements];
+        let bonusPoints = 0;
+
+        for (const achievement of achievements) {
+          if (currentAchievements.includes(achievement.id)) continue;
+
+          let earned = false;
+          switch (achievement.requirement.type) {
+            case 'problems_solved':
+              earned = newCompletedProblems.length >= achievement.requirement.value;
+              break;
+            case 'points_earned':
+              earned = newPoints >= achievement.requirement.value;
+              break;
+            case 'streak':
+              earned = user.streakDays >= achievement.requirement.value;
+              break;
+            case 'difficulty':
+              if (achievement.requirement.difficulty) {
+                const hardProblems = problems.filter(p =>
+                  p.difficulty === achievement.requirement.difficulty &&
+                  newCompletedProblems.includes(p.id)
+                );
+                earned = hardProblems.length >= achievement.requirement.value;
+              }
+              break;
+            case 'topic_completed':
+              // Check if any topic is fully completed
+              const { topics } = get();
+              for (const topic of topics) {
+                const topicProblems = problems.filter(p => p.topicId === topic.id);
+                const completedInTopic = topicProblems.filter(p => newCompletedProblems.includes(p.id));
+                if (topicProblems.length > 0 && completedInTopic.length === topicProblems.length) {
+                  earned = true;
+                  break;
+                }
+              }
+              break;
+          }
+
+          if (earned) {
+            currentAchievements.push(achievement.id);
+            bonusPoints += achievement.points;
+          }
+        }
+
         const updatedUser = {
           ...user,
-          completedProblems: user.completedProblems.includes(submission.problemId!)
-            ? user.completedProblems
-            : [...user.completedProblems, submission.problemId!],
-          points: user.points + (submission as any).points || 0,
+          completedProblems: newCompletedProblems,
+          points: newPoints + bonusPoints,
+          achievements: currentAchievements,
         };
         set({ user: updatedUser as Student });
         sessionStorage.setItem('user', JSON.stringify(updatedUser));
+
+        // Also update on server
+        if (currentAchievements.length > user.achievements.length) {
+          try {
+            await apiCall(`/api/students/${user.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                achievements: currentAchievements,
+                points: newPoints + bonusPoints
+              }),
+            });
+          } catch (e) {
+            console.error('Failed to save achievements:', e);
+          }
+        }
       }
     }
 

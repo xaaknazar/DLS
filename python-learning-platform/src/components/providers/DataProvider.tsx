@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import { Loader2 } from 'lucide-react';
 
 export default function DataProvider({ children }: { children: React.ReactNode }) {
-  const { refreshUser, loadTopics, loadProblems, isAuthenticated, user } = useStore();
+  const { refreshUser, loadTopics, loadProblems, loadStudents, isAuthenticated, user } = useStore();
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
@@ -20,9 +20,10 @@ export default function DataProvider({ children }: { children: React.ReactNode }
       // First, try to restore session
       await refreshUser();
 
-      // Load topics and problems
+      // Load topics, problems, and students
       await loadTopics();
       await loadProblems();
+      await loadStudents();
 
       setIsInitialized(true);
     };
