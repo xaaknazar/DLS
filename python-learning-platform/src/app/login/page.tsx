@@ -52,12 +52,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-8 bg-gray-950">
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center overflow-hidden">
-            <span className="text-white font-bold text-2xl">D</span>
-          </div>
-          <h1 className="text-xl font-bold text-white">Divergents Leadership School</h1>
+        {/* Title */}
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-bold text-white">Divergents Leadership School</h1>
+          <p className="text-gray-500">Informatics</p>
         </div>
 
         <div className="text-center mb-8">
