@@ -65,7 +65,12 @@ export default function Sidebar() {
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          // For home pages (/student, /teacher), only exact match
+          // For other pages, also match subpaths
+          const isHome = item.href === '/student' || item.href === '/teacher';
+          const isActive = isHome
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(item.href + '/');
 
           return (
             <Link
