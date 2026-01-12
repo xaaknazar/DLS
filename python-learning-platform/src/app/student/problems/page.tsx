@@ -7,8 +7,7 @@ import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
-import { getProblemsByGrade } from '@/data/problems';
-import { getTopicById } from '@/data/topics';
+import { getProblemsByGrade, getTopicById } from '@/lib/store';
 import { getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
 import Link from 'next/link';
 import {

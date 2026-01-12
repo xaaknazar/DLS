@@ -11,7 +11,7 @@ export const topics: Topic[] = [
     order: 1,
     icon: 'Variable',
     color: 'blue',
-    grade: 7,
+    grades: [7],
     problemIds: ['var-1', 'var-2', 'var-3', 'var-4', 'var-5', 'var-6', 'var-7', 'var-8', 'var-9', 'var-10'],
     documentation: `
 # Переменные в Python
@@ -107,7 +107,7 @@ a = b = c = 0
     order: 2,
     icon: 'Database',
     color: 'green',
-    grade: 7,
+    grades: [7],
     problemIds: ['dt-1', 'dt-2', 'dt-3', 'dt-4', 'dt-5', 'dt-6', 'dt-7', 'dt-8', 'dt-9', 'dt-10'],
     documentation: `
 # Типы данных в Python
@@ -206,7 +206,7 @@ print(isinstance(x, int))  # True
     order: 3,
     icon: 'MessageSquare',
     color: 'purple',
-    grade: 7,
+    grades: [7],
     problemIds: ['io-1', 'io-2', 'io-3', 'io-4', 'io-5', 'io-6', 'io-7', 'io-8', 'io-9', 'io-10'],
     documentation: `
 # Ввод и вывод в Python
@@ -298,7 +298,7 @@ a, b = map(int, input("Введите два числа: ").split())
     order: 4,
     icon: 'Calculator',
     color: 'orange',
-    grade: 7,
+    grades: [7],
     problemIds: ['op-1', 'op-2', 'op-3', 'op-4', 'op-5', 'op-6', 'op-7', 'op-8', 'op-9', 'op-10'],
     documentation: `
 # Операторы в Python
@@ -377,7 +377,7 @@ result = (5 + 3) * 2  # 16, а не 11
     order: 1,
     icon: 'GitBranch',
     color: 'blue',
-    grade: 8,
+    grades: [8],
     problemIds: ['cond-1', 'cond-2', 'cond-3', 'cond-4', 'cond-5', 'cond-6', 'cond-7', 'cond-8', 'cond-9', 'cond-10'],
     documentation: `
 # Условные операторы в Python
@@ -488,7 +488,7 @@ if "th" in name:
     order: 2,
     icon: 'Repeat',
     color: 'green',
-    grade: 8,
+    grades: [8],
     problemIds: ['for-1', 'for-2', 'for-3', 'for-4', 'for-5', 'for-6', 'for-7', 'for-8', 'for-9', 'for-10'],
     documentation: `
 # Цикл for в Python
@@ -599,7 +599,7 @@ else:
     order: 3,
     icon: 'RotateCcw',
     color: 'purple',
-    grade: 8,
+    grades: [8],
     problemIds: ['while-1', 'while-2', 'while-3', 'while-4', 'while-5', 'while-6', 'while-7', 'while-8', 'while-9', 'while-10'],
     documentation: `
 # Цикл while в Python
@@ -707,7 +707,7 @@ while True:
     order: 4,
     icon: 'Type',
     color: 'orange',
-    grade: 8,
+    grades: [8],
     problemIds: ['str-1', 'str-2', 'str-3', 'str-4', 'str-5', 'str-6', 'str-7', 'str-8', 'str-9', 'str-10'],
     documentation: `
 # Строки в Python
@@ -814,7 +814,7 @@ print(f"Пи = {pi:.2f}")  # Пи = 3.14
     order: 1,
     icon: 'List',
     color: 'blue',
-    grade: 9,
+    grades: [9],
     problemIds: ['list-1', 'list-2', 'list-3', 'list-4', 'list-5', 'list-6', 'list-7', 'list-8', 'list-9', 'list-10'],
     documentation: `
 # Списки в Python
@@ -927,7 +927,7 @@ not_copy = original
     order: 2,
     icon: 'Lock',
     color: 'green',
-    grade: 9,
+    grades: [9],
     problemIds: ['tuple-1', 'tuple-2', 'tuple-3', 'tuple-4', 'tuple-5', 'tuple-6', 'tuple-7', 'tuple-8', 'tuple-9', 'tuple-10'],
     documentation: `
 # Кортежи в Python
@@ -1022,7 +1022,7 @@ name, age = get_user()
     order: 3,
     icon: 'Book',
     color: 'purple',
-    grade: 9,
+    grades: [9],
     problemIds: ['dict-1', 'dict-2', 'dict-3', 'dict-4', 'dict-5', 'dict-6', 'dict-7', 'dict-8', 'dict-9', 'dict-10'],
     documentation: `
 # Словари в Python
@@ -1141,7 +1141,7 @@ print(students["student1"]["name"])  # Иван
     order: 4,
     icon: 'Function',
     color: 'orange',
-    grade: 9,
+    grades: [9],
     problemIds: ['func-1', 'func-2', 'func-3', 'func-4', 'func-5', 'func-6', 'func-7', 'func-8', 'func-9', 'func-10'],
     documentation: `
 # Функции в Python
@@ -1270,7 +1270,7 @@ sorted_nums = sorted(numbers, key=lambda x: -x)  # [5, 4, 3, 1, 1]
     order: 1,
     icon: 'FileText',
     color: 'blue',
-    grade: 10,
+    grades: [10],
     problemIds: ['file-1', 'file-2', 'file-3', 'file-4', 'file-5', 'file-6', 'file-7', 'file-8', 'file-9', 'file-10'],
     documentation: `
 # Работа с файлами в Python
@@ -1404,7 +1404,7 @@ with open("output.json", "w") as file:
     order: 2,
     icon: 'AlertTriangle',
     color: 'red',
-    grade: 10,
+    grades: [10],
     problemIds: ['exc-1', 'exc-2', 'exc-3', 'exc-4', 'exc-5', 'exc-6', 'exc-7', 'exc-8', 'exc-9', 'exc-10'],
     documentation: `
 # Исключения в Python
@@ -1526,7 +1526,7 @@ except AgeError as e:
     order: 3,
     icon: 'Box',
     color: 'purple',
-    grade: 10,
+    grades: [10],
     problemIds: ['oop-1', 'oop-2', 'oop-3', 'oop-4', 'oop-5', 'oop-6', 'oop-7', 'oop-8', 'oop-9', 'oop-10'],
     documentation: `
 # Основы ООП в Python
@@ -1660,7 +1660,7 @@ print(p1 + p2)   # Point(4, 6)
     order: 4,
     icon: 'Layers',
     color: 'orange',
-    grade: 10,
+    grades: [10],
     problemIds: ['oopa-1', 'oopa-2', 'oopa-3', 'oopa-4', 'oopa-5', 'oopa-6', 'oopa-7', 'oopa-8', 'oopa-9', 'oopa-10'],
     documentation: `
 # Продвинутое ООП в Python
@@ -1818,7 +1818,7 @@ class Car(Vehicle):  # Car "является" Vehicle
 ];
 
 export const getTopicsByGrade = (grade: number): Topic[] => {
-  return topics.filter(topic => topic.grade === grade).sort((a, b) => a.order - b.order);
+  return topics.filter(topic => topic.grades.includes(grade)).sort((a, b) => a.order - b.order);
 };
 
 export const getTopicById = (id: string): Topic | undefined => {

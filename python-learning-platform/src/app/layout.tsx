@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import DataProvider from "@/components/providers/DataProvider";
 
 export const metadata: Metadata = {
-  title: "PyLearn - Платформа для изучения Python",
+  title: "DLS - IT | Платформа для изучения Python",
   description: "Интерактивная платформа для обучения Python. Задачи, темы, проверка кода.",
 };
 
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className="bg-gray-950 text-white antialiased font-sans">
-        {children}
+        <DataProvider>
+          {children}
+        </DataProvider>
         <Toaster
           position="top-right"
           toastOptions={{

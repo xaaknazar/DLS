@@ -7,7 +7,6 @@ import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Progress from '@/components/ui/Progress';
-import { problems } from '@/data/problems';
 import { formatRelativeTime } from '@/lib/utils';
 import Link from 'next/link';
 import {
@@ -29,7 +28,7 @@ export default function StudentsPage() {
   const searchParams = useSearchParams();
   const initialGrade = searchParams.get('grade');
 
-  const { students } = useStore();
+  const { students, problems } = useStore();
   const [selectedGrade, setSelectedGrade] = useState<number | 'all'>(
     initialGrade ? parseInt(initialGrade) : 'all'
   );
@@ -170,10 +169,10 @@ export default function StudentsPage() {
           ) : (
             filteredStudents.map((student, index) => {
               const gradeProblems = problems.filter(
-                (p) => p.grade === student.grade
+                (p) => p.grades.includes(student.grade)
               );
               const progress =
-                (student.completedProblems.length / gradeProblems.length) * 100;
+                (student.completedProblems.length / Math.max(gradeProblems.length, 1)) * 100;
 
               return (
                 <Link key={student.id} href={`/teacher/students/${student.id}`}>

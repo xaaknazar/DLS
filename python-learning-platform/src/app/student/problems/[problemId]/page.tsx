@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { Student, TestResult, Submission } from '@/types';
 import Header from '@/components/layout/Header';
@@ -10,17 +10,20 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import CodeEditor from '@/components/code-editor/CodeEditor';
 import TestResults from '@/components/code-editor/TestResults';
-import { getProblemById } from '@/data/problems';
-import { getTopicById } from '@/data/topics';
+import { getProblemById, getProblemsByTopic, getTopicById } from '@/lib/store';
 import { getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
+import { executePythonCode, usePyodide } from '@/lib/pyodide';
 import toast from 'react-hot-toast';
 import {
   Star,
   Lightbulb,
   CheckCircle,
   ArrowLeft,
+  ArrowRight,
   ChevronDown,
   ChevronUp,
+  PartyPopper,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -28,13 +31,16 @@ export default function ProblemPage() {
   const params = useParams();
   const router = useRouter();
   const problemId = params.problemId as string;
-  const { user, addSubmission, updateStudentProgress } = useStore();
+  const { user, createSubmission } = useStore();
   const student = user as Student;
+  const { isLoading: pyodideLoading, isReady: pyodideReady } = usePyodide();
 
   const [isRunning, setIsRunning] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [showHints, setShowHints] = useState(false);
   const [hintsRevealed, setHintsRevealed] = useState(0);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState(0);
 
   if (!student) return null;
 
@@ -44,86 +50,87 @@ export default function ProblemPage() {
   const topic = getTopicById(problem.topicId);
   const isCompleted = student.completedProblems.includes(problem.id);
 
+  // Get next problem
+  const topicProblems = getProblemsByTopic(problem.topicId);
+  const currentIndex = topicProblems.findIndex(p => p.id === problem.id);
+  const nextProblem = topicProblems[currentIndex + 1];
+
+  const goToNextProblem = () => {
+    setShowSuccess(false);
+    if (nextProblem) {
+      router.push(`/student/problems/${nextProblem.id}`);
+    } else {
+      router.push(`/student/topics/${problem.topicId}`);
+    }
+  };
+
   const runCode = useCallback(async (code: string) => {
+    if (!pyodideReady) {
+      toast.error('Python загружается, подождите...');
+      return;
+    }
+
     setIsRunning(true);
     setTestResults([]);
+    setShowSuccess(false);
 
-    // Simulate code execution with test cases
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const results: TestResult[] = [];
 
-    const results: TestResult[] = problem.testCases
-      .filter((tc) => !tc.isHidden || isCompleted)
-      .map((testCase) => {
-        // Simulate running the code
-        // In production, this would call a Python execution API
-        const startTime = Date.now();
+    // Run code against all test cases
+    for (const testCase of problem.testCases) {
+      if (testCase.isHidden && !isCompleted) continue;
 
-        // Simple simulation - check if code contains expected patterns
-        let passed = false;
-        let actualOutput = '';
-        let error = '';
+      const startTime = Date.now();
+      const result = await executePythonCode(code, testCase.input);
+      const executionTime = Date.now() - startTime;
 
-        try {
-          // Very basic simulation for demo purposes
-          // In real implementation, this would use Pyodide or backend API
-          if (code.includes('print') && code.length > 10) {
-            // Simulate that code produces expected output for demo
-            actualOutput = testCase.expectedOutput;
-            passed = actualOutput.trim() === testCase.expectedOutput.trim();
-          } else {
-            actualOutput = 'Нет вывода';
-            passed = false;
-          }
-        } catch (e) {
-          error = 'Ошибка выполнения';
-          passed = false;
-        }
+      const actualOutput = result.output.trim();
+      const expectedOutput = testCase.expectedOutput.trim();
+      const passed = !result.error && actualOutput === expectedOutput;
 
-        const executionTime = Date.now() - startTime;
-
-        return {
-          testCaseId: testCase.id,
-          passed,
-          input: testCase.input,
-          expectedOutput: testCase.expectedOutput,
-          actualOutput,
-          executionTime,
-          error,
-        };
+      results.push({
+        testCaseId: testCase.id,
+        passed,
+        input: testCase.input,
+        expectedOutput: testCase.expectedOutput,
+        actualOutput: result.error ? `Ошибка: ${result.error}` : result.output,
+        executionTime,
+        error: result.error || undefined,
       });
+    }
 
     setTestResults(results);
 
     const allPassed = results.every((r) => r.passed);
     const passedCount = results.filter((r) => r.passed).length;
 
-    // Create submission
-    const submission: Submission = {
-      id: `sub-${Date.now()}`,
-      problemId: problem.id,
-      studentId: student.id,
-      code,
-      status: allPassed ? 'passed' : 'failed',
-      testResults: results,
-      passedTests: passedCount,
-      totalTests: results.length,
-      executionTime: results.reduce((sum, r) => sum + r.executionTime, 0),
-      submittedAt: new Date(),
-    };
+    // Create submission via API
+    try {
+      await createSubmission({
+        problemId: problem.id,
+        studentId: student.id,
+        code,
+        status: allPassed ? 'passed' : 'failed',
+        testResults: results,
+        passedTests: passedCount,
+        totalTests: results.length,
+        executionTime: results.reduce((sum, r) => sum + r.executionTime, 0),
+      } as any); // points is handled server-side
 
-    addSubmission(submission);
-
-    if (allPassed && !isCompleted) {
-      updateStudentProgress(student.id, problem.id, problem.points);
-      toast.success(`Поздравляем! +${problem.points} баллов!`);
-    } else if (allPassed) {
-      toast.success('Все тесты пройдены!');
-    } else {
-      toast.error(`Пройдено ${passedCount}/${results.length} тестов`);
+      if (allPassed && !isCompleted) {
+        setEarnedPoints(problem.points);
+        setShowSuccess(true);
+      } else if (allPassed) {
+        toast.success('Все тесты пройдены!');
+      } else {
+        toast.error(`Пройдено ${passedCount}/${results.length} тестов`);
+      }
+    } catch (error) {
+      toast.error('Ошибка сохранения результата');
     }
 
     setIsRunning(false);
-  }, [problem, student, isCompleted, addSubmission, updateStudentProgress]);
+  }, [problem, student, isCompleted, pyodideReady, createSubmission]);
 
   return (
     <div className="min-h-screen">
@@ -132,14 +139,77 @@ export default function ProblemPage() {
         subtitle={topic?.titleRu}
       />
 
+      {/* Pyodide Loading Indicator */}
+      {pyodideLoading && (
+        <div className="fixed top-20 right-8 z-40 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-2 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+          <span className="text-blue-400 text-sm">Загрузка Python...</span>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccess && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 max-w-md w-full text-center animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <PartyPopper className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Отлично!</h2>
+            <p className="text-gray-400 mb-4">Вы успешно решили задачу</p>
+
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-6">
+              <div className="flex items-center justify-center gap-2 text-yellow-400">
+                <Star className="w-6 h-6 fill-current" />
+                <span className="text-2xl font-bold">+{earnedPoints}</span>
+                <span className="text-lg">баллов</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowSuccess(false)}
+              >
+                Остаться
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={goToNextProblem}
+              >
+                {nextProblem ? (
+                  <>
+                    Следующая
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                ) : (
+                  'К теме'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="p-8">
         {/* Back button */}
-        <Link href="/student/problems">
-          <Button variant="ghost" size="sm" className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            К списку задач
-          </Button>
-        </Link>
+        <div className="flex items-center justify-between mb-4">
+          <Link href={`/student/topics/${problem.topicId}`}>
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              К теме
+            </Button>
+          </Link>
+
+          {nextProblem && (
+            <Link href={`/student/problems/${nextProblem.id}`}>
+              <Button variant="ghost" size="sm">
+                Следующая задача
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left side - Problem description */}
@@ -176,7 +246,7 @@ export default function ProblemPage() {
                 {problem.testCases
                   .filter((tc) => !tc.isHidden)
                   .slice(0, 2)
-                  .map((tc, i) => (
+                  .map((tc) => (
                     <div
                       key={tc.id}
                       className="bg-gray-800/50 rounded-xl p-4 border border-gray-700"

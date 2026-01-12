@@ -5,7 +5,6 @@ import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Progress from '@/components/ui/Progress';
 import Badge from '@/components/ui/Badge';
-import { problems } from '@/data/problems';
 import Link from 'next/link';
 import {
   Users,
@@ -19,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function TeacherDashboard() {
-  const { students, submissions } = useStore();
+  const { students, submissions, problems, topics } = useStore();
 
   // Calculate stats
   const totalStudents = students.length;
@@ -33,21 +32,21 @@ export default function TeacherDashboard() {
   );
   const averageProgress =
     students.reduce((sum, s) => {
-      const gradeProblems = problems.filter((p) => p.grade === s.grade);
-      return sum + (s.completedProblems.length / gradeProblems.length) * 100;
-    }, 0) / totalStudents;
+      const gradeProblems = problems.filter((p) => p.grades.includes(s.grade));
+      return sum + (s.completedProblems.length / Math.max(gradeProblems.length, 1)) * 100;
+    }, 0) / Math.max(totalStudents, 1);
 
   // Stats by grade
   const gradeStats = [7, 8, 9, 10].map((grade) => {
     const gradeStudents = students.filter((s) => s.grade === grade);
-    const gradeProblems = problems.filter((p) => p.grade === grade);
+    const gradeProblems = problems.filter((p) => p.grades.includes(grade));
     const avgSolved =
       gradeStudents.reduce((sum, s) => sum + s.completedProblems.length, 0) /
-      gradeStudents.length;
+      Math.max(gradeStudents.length, 1);
     const avgProgress =
       gradeStudents.reduce((sum, s) => {
-        return sum + (s.completedProblems.length / gradeProblems.length) * 100;
-      }, 0) / gradeStudents.length;
+        return sum + (s.completedProblems.length / Math.max(gradeProblems.length, 1)) * 100;
+      }, 0) / Math.max(gradeStudents.length, 1);
 
     return {
       grade,
@@ -248,7 +247,7 @@ export default function TeacherDashboard() {
                   <BookOpen className="w-5 h-5 text-blue-400" />
                   <span className="text-gray-300">Всего тем</span>
                 </div>
-                <span className="text-white font-bold">16</span>
+                <span className="text-white font-bold">{topics.length}</span>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl">

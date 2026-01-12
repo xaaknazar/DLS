@@ -1,17 +1,17 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useStore } from '@/lib/store';
+import { useEffect, useState } from 'react';
+import { useStore, getTopicsByGrade, getProblemsByTopic } from '@/lib/store';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Progress from '@/components/ui/Progress';
 import Button from '@/components/ui/Button';
-import { getTopicsByGrade } from '@/data/topics';
-import { getProblemsByTopic, problems as allProblems } from '@/data/problems';
 import { achievements } from '@/data/achievements';
 import { formatDate, getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import {
   ArrowLeft,
   Star,
@@ -23,27 +23,77 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Plus,
+  Minus,
+  Eye,
+  X,
 } from 'lucide-react';
 
 export default function StudentDetailPage() {
   const params = useParams();
   const studentId = params.studentId as string;
-  const { students, submissions } = useStore();
+  const {
+    students,
+    loadStudents,
+    loadSubmissions,
+    submissions,
+    updateStudentPoints,
+    problems: allProblems,
+    topics,
+  } = useStore();
+
+  const [pointsToAdd, setPointsToAdd] = useState(10);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [viewingCode, setViewingCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadStudents();
+    loadSubmissions(studentId);
+  }, [studentId]);
 
   const student = students.find((s) => s.id === studentId);
-  if (!student) return <div>Ученик не найден</div>;
+  if (!student) return <div className="p-8 text-white">Загрузка...</div>;
 
-  const topics = getTopicsByGrade(student.grade);
-  const gradeProblems = allProblems.filter((p) => p.grade === student.grade);
-  const studentSubmissions = submissions.filter(
-    (s) => s.studentId === studentId
-  );
+  const studentTopics = getTopicsByGrade(student.grade);
+  const gradeProblems = allProblems.filter((p) => p.grades.includes(student.grade));
+  const studentSubmissions = submissions.filter((s) => s.studentId === studentId);
   const earnedAchievements = achievements.filter((a) =>
     student.achievements.includes(a.id)
   );
 
   const overallProgress =
-    (student.completedProblems.length / gradeProblems.length) * 100;
+    gradeProblems.length > 0
+      ? (student.completedProblems.length / gradeProblems.length) * 100
+      : 0;
+
+  const handleAddPoints = async () => {
+    setIsUpdating(true);
+    try {
+      await updateStudentPoints(studentId, pointsToAdd);
+      toast.success(`Добавлено ${pointsToAdd} баллов`);
+    } catch {
+      toast.error('Ошибка при добавлении баллов');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleDeductPoints = async () => {
+    setIsUpdating(true);
+    try {
+      await updateStudentPoints(studentId, -pointsToAdd);
+      toast.success(`Снято ${pointsToAdd} баллов`);
+    } catch {
+      toast.error('Ошибка при снятии баллов');
+    }
+    setIsUpdating(false);
+  };
+
+  const viewingSubmission = viewingCode
+    ? studentSubmissions.find((s) => s.id === viewingCode)
+    : null;
+  const viewingProblem = viewingSubmission
+    ? allProblems.find((p) => p.id === viewingSubmission.problemId)
+    : null;
 
   return (
     <div className="min-h-screen">
@@ -178,18 +228,57 @@ export default function StudentDetailPage() {
           </Card>
         </div>
 
+        {/* Points Management */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            Управление баллами
+          </h2>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">Количество:</span>
+              <input
+                type="number"
+                value={pointsToAdd}
+                onChange={(e) => setPointsToAdd(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-center"
+                min="1"
+              />
+            </div>
+            <Button
+              onClick={handleAddPoints}
+              disabled={isUpdating}
+              variant="outline"
+              className="border-green-500 text-green-400 hover:bg-green-500/10"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Добавить баллы
+            </Button>
+            <Button
+              onClick={handleDeductPoints}
+              disabled={isUpdating}
+              variant="outline"
+              className="border-red-500 text-red-400 hover:bg-red-500/10"
+            >
+              <Minus className="w-4 h-4 mr-2" />
+              Снять баллы
+            </Button>
+          </div>
+        </Card>
+
         {/* Topics Progress */}
         <Card className="p-6 mb-8">
           <h2 className="text-lg font-semibold text-white mb-4">
             Прогресс по темам
           </h2>
           <div className="space-y-4">
-            {topics.map((topic) => {
+            {studentTopics.map((topic) => {
               const topicProblems = getProblemsByTopic(topic.id);
               const completed = topicProblems.filter((p) =>
                 student.completedProblems.includes(p.id)
               ).length;
-              const progress = (completed / topicProblems.length) * 100;
+              const progress = topicProblems.length > 0
+                ? (completed / topicProblems.length) * 100
+                : 0;
 
               return (
                 <div key={topic.id} className="flex items-center gap-4">
@@ -213,7 +302,7 @@ export default function StudentDetailPage() {
           </div>
         </Card>
 
-        {/* Recent Submissions */}
+        {/* Recent Submissions with Code View */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold text-white mb-4">
             Последние решения
@@ -254,10 +343,21 @@ export default function StudentDetailPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 text-gray-400 text-sm">
-                        <Clock className="w-4 h-4" />
-                        {formatDate(submission.submittedAt)}
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setViewingCode(submission.id)}
+                        className="text-blue-400 hover:text-blue-300"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Код
+                      </Button>
+                      <div className="text-right">
+                        <div className="flex items-center gap-1 text-gray-400 text-sm">
+                          <Clock className="w-4 h-4" />
+                          {formatDate(submission.submittedAt)}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -267,6 +367,38 @@ export default function StudentDetailPage() {
           )}
         </Card>
       </div>
+
+      {/* Code Viewer Modal */}
+      {viewingCode && viewingSubmission && viewingProblem && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">
+                  {viewingProblem.titleRu}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  {viewingSubmission.status === 'passed' ? 'Решено верно' : 'Не решено'} •{' '}
+                  {viewingSubmission.passedTests}/{viewingSubmission.totalTests} тестов
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingCode(null)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(90vh-100px)]">
+              <pre className="bg-gray-800 p-4 rounded-xl overflow-x-auto">
+                <code className="text-sm text-gray-100 font-mono whitespace-pre">
+                  {viewingSubmission.code}
+                </code>
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

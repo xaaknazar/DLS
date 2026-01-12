@@ -21,10 +21,7 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    // Simulate loading
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const success = login(email, password);
+    const success = await login(email, password);
 
     if (success) {
       toast.success('Добро пожаловать!');
@@ -53,129 +50,75 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-12 flex-col justify-between relative overflow-hidden">
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
-
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-white">PyLearn</h1>
+    <div className="min-h-screen flex items-center justify-center p-8 bg-gray-950">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="flex items-center gap-3 mb-8 justify-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <GraduationCap className="w-7 h-7 text-white" />
           </div>
-          <p className="text-white/80 text-lg">Платформа для изучения Python</p>
+          <h1 className="text-2xl font-bold text-white">DLS - IT</h1>
         </div>
 
-        <div className="relative z-10 space-y-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center shrink-0">
-              <span className="text-white text-lg">1</span>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold">Изучайте темы</h3>
-              <p className="text-white/70 text-sm">От переменных до ООП — всё структурировано</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center shrink-0">
-              <span className="text-white text-lg">2</span>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold">Решайте задачи</h3>
-              <p className="text-white/70 text-sm">Практикуйтесь с автоматической проверкой кода</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center shrink-0">
-              <span className="text-white text-lg">3</span>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold">Отслеживайте прогресс</h3>
-              <p className="text-white/70 text-sm">Зарабатывайте баллы и достижения</p>
-            </div>
-          </div>
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-white mb-2">Добро пожаловать!</h2>
+          <p className="text-gray-400">Войдите в свой аккаунт</p>
         </div>
 
-        <div className="relative z-10 text-white/60 text-sm">
-          &copy; 2024 PyLearn. Все права защищены.
-        </div>
-      </div>
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
-      {/* Right side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-white">PyLearn</h1>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" style={{ marginTop: '12px' }} />
+            <Input
+              label="Email"
+              type="email"
+              placeholder="Введите email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="pl-12"
+              required
+            />
           </div>
 
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Добро пожаловать!</h2>
-            <p className="text-gray-400">Войдите в свой аккаунт</p>
+          <div className="relative">
+            <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" style={{ marginTop: '12px' }} />
+            <Input
+              label="Пароль"
+              type="password"
+              placeholder="Введите пароль"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="pl-12"
+              required
+            />
           </div>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+            {isLoading ? 'Вход...' : 'Войти'}
+          </Button>
+        </form>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" style={{ marginTop: '12px' }} />
-              <Input
-                label="Email"
-                type="email"
-                placeholder="Введите email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-12"
-                required
-              />
-            </div>
-
-            <div className="relative">
-              <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" style={{ marginTop: '12px' }} />
-              <Input
-                label="Пароль"
-                type="password"
-                placeholder="Введите пароль"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-12"
-                required
-              />
-            </div>
-
-            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-              {isLoading ? 'Вход...' : 'Войти'}
+        {/* Demo credentials */}
+        <div className="mt-8 pt-6 border-t border-gray-800">
+          <p className="text-center text-gray-500 text-sm mb-4">Демо-доступ:</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="outline" size="sm" onClick={fillTeacherCredentials}>
+              Учитель
             </Button>
-          </form>
-
-          {/* Demo credentials */}
-          <div className="mt-8 pt-6 border-t border-gray-800">
-            <p className="text-center text-gray-500 text-sm mb-4">Демо-доступ:</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" size="sm" onClick={fillTeacherCredentials}>
-                Учитель
-              </Button>
-              <Button variant="outline" size="sm" onClick={fillStudentCredentials}>
-                Ученик
-              </Button>
-            </div>
-            <p className="text-center text-gray-600 text-xs mt-4">
-              Учитель: teacher@school.edu / teacher123<br />
-              Ученик: student{'{7-10}'}_{'{1-20}'}@school.edu / student123
-            </p>
+            <Button variant="outline" size="sm" onClick={fillStudentCredentials}>
+              Ученик
+            </Button>
           </div>
+          <p className="text-center text-gray-600 text-xs mt-4">
+            Учитель: teacher@school.edu / teacher123<br />
+            Ученик: student{'{7-10}'}_{'{1-20}'}@school.edu / student123
+          </p>
         </div>
       </div>
     </div>
