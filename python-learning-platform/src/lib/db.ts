@@ -1,39 +1,65 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-import { Student, Teacher, Topic, Problem, Submission, Message, User } from '@/types';
+import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+// Check if we're on Vercel with KV configured
+const isVercelKV = typeof process !== 'undefined' && process.env.KV_REST_API_URL;
 
-// Ensure data directory exists
-async function ensureDataDir() {
+// In-memory storage for local development and fallback
+let memoryStore: {
+  users: (Student | Teacher)[];
+  topics: Topic[];
+  problems: Problem[];
+  submissions: Submission[];
+  messages: Message[];
+} = {
+  users: [],
+  topics: [],
+  problems: [],
+  submissions: [],
+  messages: [],
+};
+
+let initialized = false;
+
+// KV helpers (only used when Vercel KV is configured)
+async function kvGet<T>(key: string): Promise<T | null> {
+  if (!isVercelKV) return null;
   try {
-    await fs.access(DATA_DIR);
+    const { kv } = await import('@vercel/kv');
+    return await kv.get<T>(key);
   } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
+    return null;
   }
 }
 
-// Generic read/write functions
-async function readJsonFile<T>(filename: string, defaultValue: T): Promise<T> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, filename);
+async function kvSet<T>(key: string, value: T): Promise<void> {
+  if (!isVercelKV) return;
   try {
-    const data = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    return defaultValue;
+    const { kv } = await import('@vercel/kv');
+    await kv.set(key, value);
+  } catch (e) {
+    console.error('KV set error:', e);
   }
 }
 
-async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, filename);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+// Storage abstraction
+async function getData<T>(key: string, defaultValue: T): Promise<T> {
+  if (isVercelKV) {
+    const data = await kvGet<T>(key);
+    return data ?? defaultValue;
+  }
+  return (memoryStore as any)[key] ?? defaultValue;
+}
+
+async function setData<T>(key: string, data: T): Promise<void> {
+  if (isVercelKV) {
+    await kvSet(key, data);
+  }
+  (memoryStore as any)[key] = data;
 }
 
 // ==================== USERS ====================
 export async function getUsers(): Promise<(Student | Teacher)[]> {
-  return readJsonFile('users.json', []);
+  return getData('users', []);
 }
 
 export async function getStudents(): Promise<Student[]> {
@@ -59,7 +85,7 @@ export async function getUserByEmail(email: string): Promise<Student | Teacher |
 export async function createUser(user: Student | Teacher): Promise<Student | Teacher> {
   const users = await getUsers();
   users.push(user);
-  await writeJsonFile('users.json', users);
+  await setData('users', users);
   return user;
 }
 
@@ -68,7 +94,7 @@ export async function updateUser(id: string, updates: Partial<Student | Teacher>
   const index = users.findIndex(u => u.id === id);
   if (index === -1) return null;
   users[index] = { ...users[index], ...updates } as Student | Teacher;
-  await writeJsonFile('users.json', users);
+  await setData('users', users);
   return users[index];
 }
 
@@ -78,7 +104,7 @@ export async function updateStudentPoints(id: string, pointsDelta: number): Prom
   if (index === -1 || users[index].role !== 'student') return null;
   const student = users[index] as Student;
   student.points = Math.max(0, student.points + pointsDelta);
-  await writeJsonFile('users.json', users);
+  await setData('users', users);
   return student;
 }
 
@@ -94,13 +120,13 @@ export async function markProblemCompleted(studentId: string, problemId: string,
   }
   student.lastActiveAt = new Date();
 
-  await writeJsonFile('users.json', users);
+  await setData('users', users);
   return student;
 }
 
 // ==================== TOPICS ====================
 export async function getTopics(): Promise<Topic[]> {
-  return readJsonFile('topics.json', []);
+  return getData('topics', []);
 }
 
 export async function getTopicById(id: string): Promise<Topic | null> {
@@ -116,7 +142,7 @@ export async function getTopicsByGrade(grade: number): Promise<Topic[]> {
 export async function createTopic(topic: Topic): Promise<Topic> {
   const topics = await getTopics();
   topics.push(topic);
-  await writeJsonFile('topics.json', topics);
+  await setData('topics', topics);
   return topic;
 }
 
@@ -125,24 +151,22 @@ export async function updateTopic(id: string, updates: Partial<Topic>): Promise<
   const index = topics.findIndex(t => t.id === id);
   if (index === -1) return null;
   topics[index] = { ...topics[index], ...updates };
-  await writeJsonFile('topics.json', topics);
+  await setData('topics', topics);
   return topics[index];
 }
 
 export async function deleteTopic(id: string): Promise<boolean> {
   const topics = await getTopics();
-  const filtered = topics.filter(t => t.id !== id);
-  if (filtered.length === topics.length) return false;
-  await writeJsonFile('topics.json', filtered);
-  // Also delete related problems
-  const problems = await getProblems();
-  await writeJsonFile('problems.json', problems.filter(p => p.topicId !== id));
+  const index = topics.findIndex(t => t.id === id);
+  if (index === -1) return false;
+  topics.splice(index, 1);
+  await setData('topics', topics);
   return true;
 }
 
 // ==================== PROBLEMS ====================
 export async function getProblems(): Promise<Problem[]> {
-  return readJsonFile('problems.json', []);
+  return getData('problems', []);
 }
 
 export async function getProblemById(id: string): Promise<Problem | null> {
@@ -163,7 +187,7 @@ export async function getProblemsByGrade(grade: number): Promise<Problem[]> {
 export async function createProblem(problem: Problem): Promise<Problem> {
   const problems = await getProblems();
   problems.push(problem);
-  await writeJsonFile('problems.json', problems);
+  await setData('problems', problems);
   return problem;
 }
 
@@ -172,28 +196,29 @@ export async function updateProblem(id: string, updates: Partial<Problem>): Prom
   const index = problems.findIndex(p => p.id === id);
   if (index === -1) return null;
   problems[index] = { ...problems[index], ...updates };
-  await writeJsonFile('problems.json', problems);
+  await setData('problems', problems);
   return problems[index];
 }
 
 export async function deleteProblem(id: string): Promise<boolean> {
   const problems = await getProblems();
-  const filtered = problems.filter(p => p.id !== id);
-  if (filtered.length === problems.length) return false;
-  await writeJsonFile('problems.json', filtered);
+  const index = problems.findIndex(p => p.id === id);
+  if (index === -1) return false;
+  problems.splice(index, 1);
+  await setData('problems', problems);
   return true;
 }
 
 // ==================== SUBMISSIONS ====================
 export async function getSubmissions(): Promise<Submission[]> {
-  return readJsonFile('submissions.json', []);
+  return getData('submissions', []);
 }
 
 export async function getSubmissionsByStudent(studentId: string): Promise<Submission[]> {
   const submissions = await getSubmissions();
-  return submissions.filter(s => s.studentId === studentId).sort(
-    (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-  );
+  return submissions
+    .filter(s => s.studentId === studentId)
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 }
 
 export async function getSubmissionsByProblem(problemId: string): Promise<Submission[]> {
@@ -203,22 +228,22 @@ export async function getSubmissionsByProblem(problemId: string): Promise<Submis
 
 export async function getLatestSubmission(studentId: string, problemId: string): Promise<Submission | null> {
   const submissions = await getSubmissions();
-  const filtered = submissions
+  const studentSubmissions = submissions
     .filter(s => s.studentId === studentId && s.problemId === problemId)
     .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-  return filtered[0] || null;
+  return studentSubmissions[0] || null;
 }
 
 export async function createSubmission(submission: Submission): Promise<Submission> {
   const submissions = await getSubmissions();
   submissions.push(submission);
-  await writeJsonFile('submissions.json', submissions);
+  await setData('submissions', submissions);
   return submission;
 }
 
 // ==================== MESSAGES ====================
 export async function getMessages(): Promise<Message[]> {
-  return readJsonFile('messages.json', []);
+  return getData('messages', []);
 }
 
 export async function getMessagesBetweenUsers(userId1: string, userId2: string): Promise<Message[]> {
@@ -238,44 +263,46 @@ export async function getUnreadMessagesForUser(userId: string): Promise<Message[
 
 export async function getConversationsForTeacher(teacherId: string): Promise<{ studentId: string; unreadCount: number; lastMessage: Message | null }[]> {
   const messages = await getMessages();
-  const students = await getStudents();
 
-  const conversationMap = new Map<string, { messages: Message[]; unreadCount: number }>();
+  // Get all conversations with teacher
+  const conversationMap = new Map<string, { messages: Message[] }>();
 
-  messages.forEach(m => {
-    if (m.fromUserId === teacherId || m.toUserId === teacherId) {
-      const studentId = m.fromUserId === teacherId ? m.toUserId : m.fromUserId;
+  for (const msg of messages) {
+    if (msg.fromUserId === teacherId || msg.toUserId === teacherId) {
+      const studentId = msg.fromUserId === teacherId ? msg.toUserId : msg.fromUserId;
       if (!conversationMap.has(studentId)) {
-        conversationMap.set(studentId, { messages: [], unreadCount: 0 });
+        conversationMap.set(studentId, { messages: [] });
       }
-      const conv = conversationMap.get(studentId)!;
-      conv.messages.push(m);
-      if (m.toUserId === teacherId && !m.isRead) {
-        conv.unreadCount++;
-      }
+      conversationMap.get(studentId)!.messages.push(msg);
     }
-  });
+  }
 
-  return Array.from(conversationMap.entries())
-    .filter(([studentId]) => students.some(s => s.id === studentId))
-    .map(([studentId, data]) => ({
+  // Build conversation list
+  const conversations: { studentId: string; unreadCount: number; lastMessage: Message | null }[] = [];
+
+  for (const [studentId, data] of conversationMap) {
+    const sortedMessages = data.messages.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    conversations.push({
       studentId,
-      unreadCount: data.unreadCount,
-      lastMessage: data.messages.sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0] || null
-    }))
-    .sort((a, b) => {
-      if (!a.lastMessage) return 1;
-      if (!b.lastMessage) return -1;
-      return new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime();
+      unreadCount: sortedMessages.filter(m => m.toUserId === teacherId && !m.isRead).length,
+      lastMessage: sortedMessages[0] || null,
     });
+  }
+
+  return conversations.sort((a, b) => {
+    if (!a.lastMessage) return 1;
+    if (!b.lastMessage) return -1;
+    return new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime();
+  });
 }
 
 export async function createMessage(message: Message): Promise<Message> {
   const messages = await getMessages();
   messages.push(message);
-  await writeJsonFile('messages.json', messages);
+  await setData('messages', messages);
   return message;
 }
 
@@ -286,12 +313,14 @@ export async function markMessagesAsRead(userId: string, fromUserId: string): Pr
       m.isRead = true;
     }
   });
-  await writeJsonFile('messages.json', messages);
+  await setData('messages', messages);
 }
 
 // ==================== INITIALIZATION ====================
 export async function initializeDatabase(): Promise<void> {
-  await ensureDataDir();
+  if (initialized && !isVercelKV) {
+    return; // Skip if already initialized (for in-memory mode)
+  }
 
   // Check if users exist
   const users = await getUsers();
@@ -301,7 +330,7 @@ export async function initializeDatabase(): Promise<void> {
       id: 'teacher-1',
       name: 'Учитель Информатики',
       email: 'teacher@school.edu',
-      password: 'teacher123', // In production, this should be hashed
+      password: 'teacher123',
       role: 'teacher',
       classes: [7, 8, 9, 10],
       createdAt: new Date(),
@@ -328,32 +357,22 @@ export async function initializeDatabase(): Promise<void> {
       }
     }
 
-    await writeJsonFile('users.json', [teacher, ...students]);
+    await setData('users', [teacher, ...students]);
   }
 
   // Initialize topics if empty
   const topics = await getTopics();
   if (topics.length === 0) {
-    await writeJsonFile('topics.json', getDefaultTopics());
+    await setData('topics', getDefaultTopics());
   }
 
   // Initialize problems if empty
   const problems = await getProblems();
   if (problems.length === 0) {
-    await writeJsonFile('problems.json', getDefaultProblems());
+    await setData('problems', getDefaultProblems());
   }
 
-  // Ensure messages.json exists
-  const messages = await getMessages();
-  if (!messages) {
-    await writeJsonFile('messages.json', []);
-  }
-
-  // Ensure submissions.json exists
-  const submissions = await getSubmissions();
-  if (!submissions) {
-    await writeJsonFile('submissions.json', []);
-  }
+  initialized = true;
 }
 
 function getDefaultTopics(): Topic[] {
@@ -369,28 +388,7 @@ function getDefaultTopics(): Topic[] {
       color: 'blue',
       grades: [7, 8, 9, 10],
       problemIds: ['var-1', 'var-2', 'var-3'],
-      documentation: `# Переменные в Python
-
-## Что такое переменная?
-
-Переменная — это именованная область памяти, которая хранит данные.
-
-## Создание переменных
-
-\`\`\`python
-name = "Иван"
-age = 15
-height = 1.75
-is_student = True
-\`\`\`
-
-## Типы данных
-
-- **str** — строки
-- **int** — целые числа
-- **float** — дробные числа
-- **bool** — логические значения (True/False)
-`
+      documentation: `# Переменные в Python\n\n## Что такое переменная?\n\nПеременная — это именованная область памяти, которая хранит данные.\n\n\`\`\`python\nname = "Иван"\nage = 15\n\`\`\`\n`
     },
     {
       id: 'input-output',
@@ -403,22 +401,7 @@ is_student = True
       color: 'green',
       grades: [7, 8, 9, 10],
       problemIds: ['io-1', 'io-2'],
-      documentation: `# Ввод и вывод в Python
-
-## Вывод данных - print()
-
-\`\`\`python
-print("Привет, мир!")
-print("Меня зовут", name)
-\`\`\`
-
-## Ввод данных - input()
-
-\`\`\`python
-name = input("Как тебя зовут? ")
-age = int(input("Сколько тебе лет? "))
-\`\`\`
-`
+      documentation: `# Ввод и вывод в Python\n\n\`\`\`python\nprint("Привет!")\nname = input("Имя: ")\n\`\`\`\n`
     },
     {
       id: 'conditions',
@@ -431,28 +414,7 @@ age = int(input("Сколько тебе лет? "))
       color: 'yellow',
       grades: [7, 8, 9, 10],
       problemIds: ['cond-1', 'cond-2'],
-      documentation: `# Условные операторы
-
-## if, elif, else
-
-\`\`\`python
-age = 18
-
-if age < 18:
-    print("Несовершеннолетний")
-elif age == 18:
-    print("Только исполнилось 18!")
-else:
-    print("Совершеннолетний")
-\`\`\`
-
-## Операторы сравнения
-
-- \`==\` — равно
-- \`!=\` — не равно
-- \`<\`, \`>\` — меньше, больше
-- \`<=\`, \`>=\` — меньше или равно, больше или равно
-`
+      documentation: `# Условные операторы\n\n\`\`\`python\nif age >= 18:\n    print("Взрослый")\nelse:\n    print("Ребёнок")\n\`\`\`\n`
     },
     {
       id: 'loops',
@@ -465,27 +427,7 @@ else:
       color: 'purple',
       grades: [7, 8, 9, 10],
       problemIds: ['loop-1', 'loop-2'],
-      documentation: `# Циклы в Python
-
-## Цикл for
-
-\`\`\`python
-for i in range(5):
-    print(i)  # 0, 1, 2, 3, 4
-
-for letter in "Python":
-    print(letter)
-\`\`\`
-
-## Цикл while
-
-\`\`\`python
-count = 0
-while count < 5:
-    print(count)
-    count += 1
-\`\`\`
-`
+      documentation: `# Циклы в Python\n\n\`\`\`python\nfor i in range(5):\n    print(i)\n\`\`\`\n`
     },
     {
       id: 'lists',
@@ -498,25 +440,7 @@ while count < 5:
       color: 'orange',
       grades: [8, 9, 10],
       problemIds: ['list-1', 'list-2'],
-      documentation: `# Списки в Python
-
-## Создание списка
-
-\`\`\`python
-numbers = [1, 2, 3, 4, 5]
-names = ["Анна", "Борис", "Вика"]
-mixed = [1, "два", 3.0, True]
-\`\`\`
-
-## Операции со списками
-
-\`\`\`python
-numbers.append(6)     # Добавить элемент
-numbers.remove(3)     # Удалить элемент
-print(numbers[0])     # Первый элемент
-print(len(numbers))   # Длина списка
-\`\`\`
-`
+      documentation: `# Списки в Python\n\n\`\`\`python\nnums = [1, 2, 3]\nnums.append(4)\n\`\`\`\n`
     },
     {
       id: 'functions',
@@ -529,279 +453,157 @@ print(len(numbers))   # Длина списка
       color: 'pink',
       grades: [8, 9, 10],
       problemIds: ['func-1', 'func-2'],
-      documentation: `# Функции в Python
-
-## Создание функции
-
-\`\`\`python
-def greet(name):
-    return f"Привет, {name}!"
-
-message = greet("Мир")
-print(message)
-\`\`\`
-
-## Функция с несколькими параметрами
-
-\`\`\`python
-def add(a, b):
-    return a + b
-
-result = add(5, 3)
-\`\`\`
-`
-    },
-    {
-      id: 'strings',
-      title: 'Strings',
-      titleRu: 'Строки',
-      description: 'Learn about string operations',
-      descriptionRu: 'Изучение операций со строками',
-      order: 7,
-      icon: 'Type',
-      color: 'cyan',
-      grades: [9, 10],
-      problemIds: ['str-1', 'str-2'],
-      documentation: `# Строки в Python
-
-## Методы строк
-
-\`\`\`python
-text = "  Привет, Python!  "
-print(text.upper())      # ПРИВЕТ, PYTHON!
-print(text.lower())      # привет, python!
-print(text.strip())      # Привет, Python!
-print(text.replace("Python", "Мир"))
-\`\`\`
-
-## Срезы строк
-
-\`\`\`python
-text = "Python"
-print(text[0])      # P
-print(text[-1])     # n
-print(text[0:3])    # Pyt
-print(text[::-1])   # nohtyP
-\`\`\`
-`
-    },
-    {
-      id: 'dictionaries',
-      title: 'Dictionaries',
-      titleRu: 'Словари',
-      description: 'Learn about dictionaries',
-      descriptionRu: 'Изучение словарей',
-      order: 8,
-      icon: 'Book',
-      color: 'red',
-      grades: [9, 10],
-      problemIds: ['dict-1'],
-      documentation: `# Словари в Python
-
-## Создание словаря
-
-\`\`\`python
-student = {
-    "name": "Иван",
-    "age": 15,
-    "grade": 9
-}
-\`\`\`
-
-## Работа со словарём
-
-\`\`\`python
-print(student["name"])      # Иван
-student["city"] = "Москва"  # Добавить
-del student["age"]          # Удалить
-\`\`\`
-`
-    },
-    {
-      id: 'classes',
-      title: 'Classes',
-      titleRu: 'Классы',
-      description: 'Learn about OOP and classes',
-      descriptionRu: 'Изучение ООП и классов',
-      order: 9,
-      icon: 'Box',
-      color: 'indigo',
-      grades: [10],
-      problemIds: ['class-1'],
-      documentation: `# Классы в Python
-
-## Создание класса
-
-\`\`\`python
-class Student:
-    def __init__(self, name, grade):
-        self.name = name
-        self.grade = grade
-
-    def introduce(self):
-        return f"Я {self.name}, {self.grade} класс"
-
-student = Student("Иван", 10)
-print(student.introduce())
-\`\`\`
-`
+      documentation: `# Функции в Python\n\n\`\`\`python\ndef greet(name):\n    return f"Привет, {name}!"\n\`\`\`\n`
     },
   ];
 }
 
 function getDefaultProblems(): Problem[] {
   return [
-    // Variables
     {
       id: 'var-1',
       topicId: 'variables',
-      title: 'First Variable',
-      titleRu: 'Первая переменная',
-      description: 'Create a variable',
-      descriptionRu: 'Создайте переменную name со своим именем и выведите её.',
+      title: 'Hello Variable',
+      titleRu: 'Привет, переменная',
+      description: 'Create a variable and print it',
+      descriptionRu: 'Создайте переменную message со значением "Hello" и выведите её',
       difficulty: 'easy',
       points: 10,
       order: 1,
       grades: [7, 8, 9, 10],
-      starterCode: '# Создайте переменную name и выведите её\n',
-      solution: 'name = "Иван"\nprint(name)',
-      hints: ['Используйте знак = для присваивания', 'Строки пишутся в кавычках'],
-      testCases: [
-        { id: 'tc1', input: '', expectedOutput: '', isHidden: false, description: 'Программа должна что-то вывести' }
-      ]
+      starterCode: '# Создайте переменную message и выведите её\n',
+      solution: 'message = "Hello"\nprint(message)',
+      hints: ['Используйте = для присваивания'],
+      testCases: [{ id: 'tc1', input: '', expectedOutput: 'Hello', isHidden: false }]
     },
     {
       id: 'var-2',
       topicId: 'variables',
-      title: 'Sum of Numbers',
-      titleRu: 'Сумма чисел',
-      description: 'Calculate sum',
-      descriptionRu: 'Создайте две переменные a=5 и b=3, выведите их сумму.',
+      title: 'Sum Two Numbers',
+      titleRu: 'Сумма двух чисел',
+      description: 'Read two numbers and print their sum',
+      descriptionRu: 'Прочитайте два числа и выведите их сумму',
       difficulty: 'easy',
       points: 10,
       order: 2,
       grades: [7, 8, 9, 10],
-      starterCode: '# Создайте переменные a и b, выведите их сумму\n',
-      solution: 'a = 5\nb = 3\nprint(a + b)',
-      hints: ['a + b даст сумму'],
-      testCases: [
-        { id: 'tc1', input: '', expectedOutput: '8', isHidden: false, description: 'Должно вывести 8' }
-      ]
-    },
-    {
-      id: 'var-3',
-      topicId: 'variables',
-      title: 'Data Types',
-      titleRu: 'Типы данных',
-      description: 'Work with different types',
-      descriptionRu: 'Создайте переменные: age (целое число 15), height (дробное 1.75), name (строка). Выведите их типы.',
-      difficulty: 'medium',
-      points: 15,
-      order: 3,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Создайте переменные и выведите их типы с помощью type()\n',
-      solution: 'age = 15\nheight = 1.75\nname = "Иван"\nprint(type(age))\nprint(type(height))\nprint(type(name))',
-      hints: ['Функция type() возвращает тип переменной'],
-      testCases: [
-        { id: 'tc1', input: '', expectedOutput: "<class 'int'>\n<class 'float'>\n<class 'str'>", isHidden: false }
-      ]
-    },
-    // Input/Output
-    {
-      id: 'io-1',
-      topicId: 'input-output',
-      title: 'Hello User',
-      titleRu: 'Привет, пользователь',
-      description: 'Greet the user',
-      descriptionRu: 'Считайте имя пользователя и выведите "Привет, {имя}!"',
-      difficulty: 'easy',
-      points: 10,
-      order: 1,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Считайте имя и поприветствуйте\nname = input()\n',
-      solution: 'name = input()\nprint(f"Привет, {name}!")',
-      hints: ['Используйте f-строку или конкатенацию'],
-      testCases: [
-        { id: 'tc1', input: 'Иван', expectedOutput: 'Привет, Иван!', isHidden: false },
-        { id: 'tc2', input: 'Мария', expectedOutput: 'Привет, Мария!', isHidden: false }
-      ]
-    },
-    {
-      id: 'io-2',
-      topicId: 'input-output',
-      title: 'Sum Input',
-      titleRu: 'Сумма введённых чисел',
-      description: 'Sum two input numbers',
-      descriptionRu: 'Считайте два числа и выведите их сумму.',
-      difficulty: 'easy',
-      points: 10,
-      order: 2,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Считайте два числа и выведите сумму\n',
+      starterCode: '# Прочитайте два числа и выведите их сумму\n',
       solution: 'a = int(input())\nb = int(input())\nprint(a + b)',
-      hints: ['Не забудьте преобразовать в int()'],
+      hints: ['int() преобразует строку в число'],
       testCases: [
         { id: 'tc1', input: '5\n3', expectedOutput: '8', isHidden: false },
         { id: 'tc2', input: '10\n20', expectedOutput: '30', isHidden: false }
       ]
     },
-    // Conditions
+    {
+      id: 'var-3',
+      topicId: 'variables',
+      title: 'Rectangle Area',
+      titleRu: 'Площадь прямоугольника',
+      description: 'Calculate rectangle area',
+      descriptionRu: 'Вычислите площадь прямоугольника',
+      difficulty: 'easy',
+      points: 15,
+      order: 3,
+      grades: [7, 8, 9, 10],
+      starterCode: '# Прочитайте ширину и высоту\n',
+      solution: 'w = int(input())\nh = int(input())\nprint(w * h)',
+      hints: ['Площадь = ширина × высота'],
+      testCases: [
+        { id: 'tc1', input: '5\n3', expectedOutput: '15', isHidden: false },
+        { id: 'tc2', input: '10\n10', expectedOutput: '100', isHidden: false }
+      ]
+    },
+    {
+      id: 'io-1',
+      topicId: 'input-output',
+      title: 'Greeting',
+      titleRu: 'Приветствие',
+      description: 'Read name and greet',
+      descriptionRu: 'Выведите приветствие',
+      difficulty: 'easy',
+      points: 10,
+      order: 1,
+      grades: [7, 8, 9, 10],
+      starterCode: '# Выведите "Hello, <имя>!"\n',
+      solution: 'name = input()\nprint(f"Hello, {name}!")',
+      hints: ['Используйте f-строки'],
+      testCases: [
+        { id: 'tc1', input: 'World', expectedOutput: 'Hello, World!', isHidden: false }
+      ]
+    },
+    {
+      id: 'io-2',
+      topicId: 'input-output',
+      title: 'Double',
+      titleRu: 'Удвоение',
+      description: 'Double the number',
+      descriptionRu: 'Удвойте число',
+      difficulty: 'easy',
+      points: 10,
+      order: 2,
+      grades: [7, 8, 9, 10],
+      starterCode: '# Удвойте число\n',
+      solution: 'n = int(input())\nprint(n * 2)',
+      hints: ['Умножьте на 2'],
+      testCases: [
+        { id: 'tc1', input: '5', expectedOutput: '10', isHidden: false }
+      ]
+    },
     {
       id: 'cond-1',
       topicId: 'conditions',
       title: 'Even or Odd',
       titleRu: 'Чётное или нечётное',
-      description: 'Check if number is even',
-      descriptionRu: 'Считайте число и выведите "Чётное" или "Нечётное".',
+      description: 'Check if number is even or odd',
+      descriptionRu: 'Проверьте чётность',
       difficulty: 'easy',
       points: 10,
       order: 1,
       grades: [7, 8, 9, 10],
-      starterCode: '# Определите чётность числа\nn = int(input())\n',
-      solution: 'n = int(input())\nif n % 2 == 0:\n    print("Чётное")\nelse:\n    print("Нечётное")',
-      hints: ['Используйте оператор % (остаток от деления)'],
+      starterCode: '# Выведите "even" или "odd"\n',
+      solution: 'n = int(input())\nif n % 2 == 0:\n    print("even")\nelse:\n    print("odd")',
+      hints: ['% даёт остаток от деления'],
       testCases: [
-        { id: 'tc1', input: '4', expectedOutput: 'Чётное', isHidden: false },
-        { id: 'tc2', input: '7', expectedOutput: 'Нечётное', isHidden: false }
+        { id: 'tc1', input: '4', expectedOutput: 'even', isHidden: false },
+        { id: 'tc2', input: '7', expectedOutput: 'odd', isHidden: false }
       ]
     },
     {
       id: 'cond-2',
       topicId: 'conditions',
-      title: 'Max of Three',
-      titleRu: 'Максимум из трёх',
-      description: 'Find maximum of three numbers',
-      descriptionRu: 'Считайте три числа и выведите наибольшее.',
-      difficulty: 'medium',
-      points: 15,
+      title: 'Maximum',
+      titleRu: 'Максимум',
+      description: 'Find maximum',
+      descriptionRu: 'Найдите максимум',
+      difficulty: 'easy',
+      points: 10,
       order: 2,
       grades: [7, 8, 9, 10],
-      starterCode: '# Найдите максимум из трёх чисел\n',
-      solution: 'a = int(input())\nb = int(input())\nc = int(input())\nprint(max(a, b, c))',
-      hints: ['Можно использовать функцию max()'],
+      starterCode: '# Выведите большее число\n',
+      solution: 'a = int(input())\nb = int(input())\nif a > b:\n    print(a)\nelse:\n    print(b)',
+      hints: ['Сравните a и b'],
       testCases: [
-        { id: 'tc1', input: '1\n5\n3', expectedOutput: '5', isHidden: false },
-        { id: 'tc2', input: '10\n10\n5', expectedOutput: '10', isHidden: false }
+        { id: 'tc1', input: '5\n3', expectedOutput: '5', isHidden: false },
+        { id: 'tc2', input: '10\n20', expectedOutput: '20', isHidden: false }
       ]
     },
-    // Loops
     {
       id: 'loop-1',
       topicId: 'loops',
       title: 'Count to N',
       titleRu: 'Счёт до N',
-      description: 'Count from 1 to N',
-      descriptionRu: 'Считайте число N и выведите числа от 1 до N через пробел.',
+      description: 'Print 1 to N',
+      descriptionRu: 'Выведите от 1 до N',
       difficulty: 'easy',
       points: 10,
       order: 1,
       grades: [7, 8, 9, 10],
-      starterCode: '# Выведите числа от 1 до N\nn = int(input())\n',
-      solution: 'n = int(input())\nprint(" ".join(str(i) for i in range(1, n + 1)))',
-      hints: ['range(1, n+1) даёт числа от 1 до n'],
+      starterCode: '# Выведите числа от 1 до N\n',
+      solution: 'n = int(input())\nfor i in range(1, n + 1):\n    print(i)',
+      hints: ['range(1, n+1)'],
       testCases: [
-        { id: 'tc1', input: '5', expectedOutput: '1 2 3 4 5', isHidden: false },
-        { id: 'tc2', input: '3', expectedOutput: '1 2 3', isHidden: false }
+        { id: 'tc1', input: '5', expectedOutput: '1\n2\n3\n4\n5', isHidden: false }
       ]
     },
     {
@@ -809,173 +611,91 @@ function getDefaultProblems(): Problem[] {
       topicId: 'loops',
       title: 'Sum 1 to N',
       titleRu: 'Сумма от 1 до N',
-      description: 'Sum numbers from 1 to N',
-      descriptionRu: 'Считайте число N и выведите сумму чисел от 1 до N.',
+      description: 'Sum from 1 to N',
+      descriptionRu: 'Сумма от 1 до N',
       difficulty: 'easy',
-      points: 10,
+      points: 15,
       order: 2,
       grades: [7, 8, 9, 10],
-      starterCode: '# Найдите сумму от 1 до N\nn = int(input())\n',
-      solution: 'n = int(input())\nprint(sum(range(1, n + 1)))',
-      hints: ['Можно использовать цикл for или формулу n*(n+1)/2'],
+      starterCode: '# Выведите сумму\n',
+      solution: 'n = int(input())\ntotal = 0\nfor i in range(1, n + 1):\n    total += i\nprint(total)',
+      hints: ['Накапливайте сумму'],
       testCases: [
         { id: 'tc1', input: '5', expectedOutput: '15', isHidden: false },
         { id: 'tc2', input: '10', expectedOutput: '55', isHidden: false }
       ]
     },
-    // Lists
     {
       id: 'list-1',
       topicId: 'lists',
       title: 'List Sum',
       titleRu: 'Сумма списка',
-      description: 'Sum of list elements',
-      descriptionRu: 'Считайте N чисел и выведите их сумму.',
+      description: 'Sum all elements',
+      descriptionRu: 'Просуммируйте элементы',
       difficulty: 'easy',
       points: 10,
       order: 1,
       grades: [8, 9, 10],
-      starterCode: '# Считайте числа и найдите сумму\nn = int(input())\n',
-      solution: 'n = int(input())\nnumbers = [int(input()) for _ in range(n)]\nprint(sum(numbers))',
-      hints: ['Можно использовать list comprehension'],
+      starterCode: '# Числа через пробел\n',
+      solution: 'nums = list(map(int, input().split()))\nprint(sum(nums))',
+      hints: ['split() разделяет строку'],
       testCases: [
-        { id: 'tc1', input: '3\n1\n2\n3', expectedOutput: '6', isHidden: false },
-        { id: 'tc2', input: '4\n10\n20\n30\n40', expectedOutput: '100', isHidden: false }
+        { id: 'tc1', input: '1 2 3 4 5', expectedOutput: '15', isHidden: false }
       ]
     },
     {
       id: 'list-2',
       topicId: 'lists',
-      title: 'List Reverse',
-      titleRu: 'Разворот списка',
-      description: 'Reverse a list',
-      descriptionRu: 'Считайте N чисел и выведите их в обратном порядке.',
-      difficulty: 'medium',
-      points: 15,
+      title: 'Find Max',
+      titleRu: 'Найти максимум',
+      description: 'Find maximum',
+      descriptionRu: 'Найдите максимум',
+      difficulty: 'easy',
+      points: 10,
       order: 2,
       grades: [8, 9, 10],
-      starterCode: '# Считайте числа и выведите в обратном порядке\n',
-      solution: 'n = int(input())\nnumbers = [int(input()) for _ in range(n)]\nprint(" ".join(map(str, numbers[::-1])))',
-      hints: ['[::-1] разворачивает список'],
+      starterCode: '# Найдите максимум\n',
+      solution: 'nums = list(map(int, input().split()))\nm = nums[0]\nfor n in nums:\n    if n > m:\n        m = n\nprint(m)',
+      hints: ['Сравнивайте с текущим максимумом'],
       testCases: [
-        { id: 'tc1', input: '3\n1\n2\n3', expectedOutput: '3 2 1', isHidden: false }
+        { id: 'tc1', input: '3 1 4 1 5 9', expectedOutput: '9', isHidden: false }
       ]
     },
-    // Functions
     {
       id: 'func-1',
       topicId: 'functions',
-      title: 'Square Function',
-      titleRu: 'Функция квадрата',
-      description: 'Create a square function',
-      descriptionRu: 'Создайте функцию square(n), которая возвращает квадрат числа. Считайте число и выведите его квадрат.',
+      title: 'Double Function',
+      titleRu: 'Функция удвоения',
+      description: 'Create double function',
+      descriptionRu: 'Создайте функцию',
       difficulty: 'easy',
       points: 10,
       order: 1,
       grades: [8, 9, 10],
-      starterCode: '# Создайте функцию square\ndef square(n):\n    pass  # ваш код\n\nn = int(input())\nprint(square(n))',
-      solution: 'def square(n):\n    return n * n\n\nn = int(input())\nprint(square(n))',
-      hints: ['return возвращает значение из функции'],
+      starterCode: '# Создайте функцию double(n)\n',
+      solution: 'def double(n):\n    return n * 2\n\nn = int(input())\nprint(double(n))',
+      hints: ['Используйте return'],
       testCases: [
-        { id: 'tc1', input: '5', expectedOutput: '25', isHidden: false },
-        { id: 'tc2', input: '3', expectedOutput: '9', isHidden: false }
+        { id: 'tc1', input: '5', expectedOutput: '10', isHidden: false }
       ]
     },
     {
       id: 'func-2',
       topicId: 'functions',
-      title: 'Factorial',
-      titleRu: 'Факториал',
-      description: 'Calculate factorial',
-      descriptionRu: 'Создайте функцию factorial(n), которая вычисляет факториал. Выведите factorial(n).',
+      title: 'Palindrome',
+      titleRu: 'Палиндром',
+      description: 'Check palindrome',
+      descriptionRu: 'Проверьте палиндром',
       difficulty: 'medium',
       points: 20,
       order: 2,
       grades: [8, 9, 10],
-      starterCode: '# Создайте функцию factorial\ndef factorial(n):\n    pass  # ваш код\n\nn = int(input())\nprint(factorial(n))',
-      solution: 'def factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n\nn = int(input())\nprint(factorial(n))',
-      hints: ['Факториал: n! = n * (n-1) * ... * 1', '0! = 1'],
+      starterCode: '# Функция is_palindrome(s)\n',
+      solution: 'def is_palindrome(s):\n    return s == s[::-1]\n\ns = input()\nprint("yes" if is_palindrome(s) else "no")',
+      hints: ['s[::-1] разворачивает строку'],
       testCases: [
-        { id: 'tc1', input: '5', expectedOutput: '120', isHidden: false },
-        { id: 'tc2', input: '0', expectedOutput: '1', isHidden: false }
-      ]
-    },
-    // Strings
-    {
-      id: 'str-1',
-      topicId: 'strings',
-      title: 'Palindrome',
-      titleRu: 'Палиндром',
-      description: 'Check if string is palindrome',
-      descriptionRu: 'Проверьте, является ли строка палиндромом. Выведите "YES" или "NO".',
-      difficulty: 'medium',
-      points: 15,
-      order: 1,
-      grades: [9, 10],
-      starterCode: '# Проверьте палиндром\ns = input()\n',
-      solution: 's = input()\nprint("YES" if s == s[::-1] else "NO")',
-      hints: ['Палиндром читается одинаково слева направо и справа налево'],
-      testCases: [
-        { id: 'tc1', input: 'abcba', expectedOutput: 'YES', isHidden: false },
-        { id: 'tc2', input: 'hello', expectedOutput: 'NO', isHidden: false }
-      ]
-    },
-    {
-      id: 'str-2',
-      topicId: 'strings',
-      title: 'Word Count',
-      titleRu: 'Количество слов',
-      description: 'Count words in string',
-      descriptionRu: 'Посчитайте количество слов в строке.',
-      difficulty: 'easy',
-      points: 10,
-      order: 2,
-      grades: [9, 10],
-      starterCode: '# Посчитайте слова\ns = input()\n',
-      solution: 's = input()\nprint(len(s.split()))',
-      hints: ['split() разбивает строку по пробелам'],
-      testCases: [
-        { id: 'tc1', input: 'Привет мир', expectedOutput: '2', isHidden: false },
-        { id: 'tc2', input: 'Один', expectedOutput: '1', isHidden: false }
-      ]
-    },
-    // Dictionaries
-    {
-      id: 'dict-1',
-      topicId: 'dictionaries',
-      title: 'Word Frequency',
-      titleRu: 'Частота слов',
-      description: 'Count word frequency',
-      descriptionRu: 'Посчитайте, сколько раз встречается каждое слово. Выведите в формате "слово: количество".',
-      difficulty: 'hard',
-      points: 25,
-      order: 1,
-      grades: [9, 10],
-      starterCode: '# Посчитайте частоту слов\ntext = input()\n',
-      solution: 'text = input()\nwords = text.split()\nfreq = {}\nfor word in words:\n    freq[word] = freq.get(word, 0) + 1\nfor word, count in sorted(freq.items()):\n    print(f"{word}: {count}")',
-      hints: ['dict.get(key, default) возвращает значение или default'],
-      testCases: [
-        { id: 'tc1', input: 'a b a', expectedOutput: 'a: 2\nb: 1', isHidden: false }
-      ]
-    },
-    // Classes
-    {
-      id: 'class-1',
-      topicId: 'classes',
-      title: 'Rectangle Class',
-      titleRu: 'Класс Прямоугольник',
-      description: 'Create Rectangle class',
-      descriptionRu: 'Создайте класс Rectangle с методами area() и perimeter(). Считайте ширину и высоту, выведите площадь и периметр.',
-      difficulty: 'hard',
-      points: 30,
-      order: 1,
-      grades: [10],
-      starterCode: '# Создайте класс Rectangle\nclass Rectangle:\n    pass  # ваш код\n\nw = int(input())\nh = int(input())\nrect = Rectangle(w, h)\nprint(rect.area())\nprint(rect.perimeter())',
-      solution: 'class Rectangle:\n    def __init__(self, width, height):\n        self.width = width\n        self.height = height\n    \n    def area(self):\n        return self.width * self.height\n    \n    def perimeter(self):\n        return 2 * (self.width + self.height)\n\nw = int(input())\nh = int(input())\nrect = Rectangle(w, h)\nprint(rect.area())\nprint(rect.perimeter())',
-      hints: ['__init__ - конструктор класса', 'self - ссылка на экземпляр'],
-      testCases: [
-        { id: 'tc1', input: '5\n3', expectedOutput: '15\n16', isHidden: false },
-        { id: 'tc2', input: '4\n4', expectedOutput: '16\n16', isHidden: false }
+        { id: 'tc1', input: 'radar', expectedOutput: 'yes', isHidden: false },
+        { id: 'tc2', input: 'hello', expectedOutput: 'no', isHidden: false }
       ]
     }
   ];
