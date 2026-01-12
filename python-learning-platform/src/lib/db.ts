@@ -342,6 +342,18 @@ export async function initializeDatabase(): Promise<void> {
   if (problems.length === 0) {
     await writeJsonFile('problems.json', getDefaultProblems());
   }
+
+  // Ensure messages.json exists
+  const messages = await getMessages();
+  if (!messages) {
+    await writeJsonFile('messages.json', []);
+  }
+
+  // Ensure submissions.json exists
+  const submissions = await getSubmissions();
+  if (!submissions) {
+    await writeJsonFile('submissions.json', []);
+  }
 }
 
 function getDefaultTopics(): Topic[] {
