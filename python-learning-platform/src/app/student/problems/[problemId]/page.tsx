@@ -31,7 +31,7 @@ export default function ProblemPage() {
   const params = useParams();
   const router = useRouter();
   const problemId = params.problemId as string;
-  const { user, addSubmission, updateStudentProgress } = useStore();
+  const { user, createSubmission } = useStore();
   const student = user as Student;
   const { isLoading: pyodideLoading, isReady: pyodideReady } = usePyodide();
 
@@ -104,34 +104,33 @@ export default function ProblemPage() {
     const allPassed = results.every((r) => r.passed);
     const passedCount = results.filter((r) => r.passed).length;
 
-    // Create submission
-    const submission: Submission = {
-      id: `sub-${Date.now()}`,
-      problemId: problem.id,
-      studentId: student.id,
-      code,
-      status: allPassed ? 'passed' : 'failed',
-      testResults: results,
-      passedTests: passedCount,
-      totalTests: results.length,
-      executionTime: results.reduce((sum, r) => sum + r.executionTime, 0),
-      submittedAt: new Date(),
-    };
+    // Create submission via API
+    try {
+      await createSubmission({
+        problemId: problem.id,
+        studentId: student.id,
+        code,
+        status: allPassed ? 'passed' : 'failed',
+        testResults: results,
+        passedTests: passedCount,
+        totalTests: results.length,
+        executionTime: results.reduce((sum, r) => sum + r.executionTime, 0),
+      } as any); // points is handled server-side
 
-    addSubmission(submission);
-
-    if (allPassed && !isCompleted) {
-      updateStudentProgress(student.id, problem.id, problem.points);
-      setEarnedPoints(problem.points);
-      setShowSuccess(true);
-    } else if (allPassed) {
-      toast.success('Все тесты пройдены!');
-    } else {
-      toast.error(`Пройдено ${passedCount}/${results.length} тестов`);
+      if (allPassed && !isCompleted) {
+        setEarnedPoints(problem.points);
+        setShowSuccess(true);
+      } else if (allPassed) {
+        toast.success('Все тесты пройдены!');
+      } else {
+        toast.error(`Пройдено ${passedCount}/${results.length} тестов`);
+      }
+    } catch (error) {
+      toast.error('Ошибка сохранения результата');
     }
 
     setIsRunning(false);
-  }, [problem, student, isCompleted, pyodideReady, addSubmission, updateStudentProgress]);
+  }, [problem, student, isCompleted, pyodideReady, createSubmission]);
 
   return (
     <div className="min-h-screen">

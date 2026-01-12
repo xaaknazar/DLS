@@ -19,7 +19,7 @@ export default function EditTopicPage() {
   const isNew = topicId === 'new';
   const defaultGrade = parseInt(searchParams.get('grade') || '7');
 
-  const { topics, updateTopic, addTopic } = useStore();
+  const { topics, updateTopic, createTopic } = useStore();
   const existingTopic = topics.find((t) => t.id === topicId);
 
   const [formData, setFormData] = useState({
@@ -31,7 +31,7 @@ export default function EditTopicPage() {
     order: 1,
     icon: 'BookOpen',
     color: 'blue',
-    grade: defaultGrade,
+    grades: [defaultGrade] as number[],
     documentation: '',
     problemIds: [] as string[],
   });
@@ -47,14 +47,24 @@ export default function EditTopicPage() {
         order: existingTopic.order,
         icon: existingTopic.icon,
         color: existingTopic.color,
-        grade: existingTopic.grade,
+        grades: existingTopic.grades || [7],
         documentation: existingTopic.documentation,
         problemIds: existingTopic.problemIds,
       });
     }
   }, [isNew, existingTopic]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const toggleGrade = (grade: number) => {
+    if (formData.grades.includes(grade)) {
+      if (formData.grades.length > 1) {
+        setFormData({ ...formData, grades: formData.grades.filter(g => g !== grade) });
+      }
+    } else {
+      setFormData({ ...formData, grades: [...formData.grades, grade].sort() });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.titleRu.trim()) {
@@ -62,23 +72,32 @@ export default function EditTopicPage() {
       return;
     }
 
-    if (isNew) {
-      const newId = formData.titleRu
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '') + '-' + formData.grade;
-
-      addTopic({
-        ...formData,
-        id: newId,
-      });
-      toast.success('Тема создана');
-    } else {
-      updateTopic(topicId, formData);
-      toast.success('Тема обновлена');
+    if (formData.grades.length === 0) {
+      toast.error('Выберите хотя бы один класс');
+      return;
     }
 
-    router.push('/teacher/content');
+    try {
+      if (isNew) {
+        const newId = formData.titleRu
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-zа-я0-9-]/g, '') + '-' + Date.now();
+
+        await createTopic({
+          ...formData,
+          id: newId,
+        });
+        toast.success('Тема создана');
+      } else {
+        await updateTopic(topicId, formData);
+        toast.success('Тема обновлена');
+      }
+
+      router.push('/teacher/content');
+    } catch (error) {
+      toast.error('Ошибка сохранения');
+    }
   };
 
   return (
@@ -137,25 +156,32 @@ export default function EditTopicPage() {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  Класс
-                </label>
-                <select
-                  value={formData.grade}
-                  onChange={(e) =>
-                    setFormData({ ...formData, grade: parseInt(e.target.value) })
-                  }
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value={7}>7 класс</option>
-                  <option value={8}>8 класс</option>
-                  <option value={9}>9 класс</option>
-                  <option value={10}>10 класс</option>
-                </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Классы
+              </label>
+              <div className="flex gap-2">
+                {[7, 8, 9, 10].map((grade) => (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() => toggleGrade(grade)}
+                    className={`px-4 py-2 rounded-xl font-medium transition-all ${
+                      formData.grades.includes(grade)
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                  >
+                    {grade} класс
+                  </button>
+                ))}
               </div>
+              <p className="text-gray-500 text-sm mt-1">
+                Выбрано: {formData.grades.sort().join(', ')} класс
+              </p>
+            </div>
 
+            <div className="grid grid-cols-2 gap-6">
               <Input
                 label="Порядок"
                 type="number"

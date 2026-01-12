@@ -169,10 +169,10 @@ export default function StudentsPage() {
           ) : (
             filteredStudents.map((student, index) => {
               const gradeProblems = problems.filter(
-                (p) => p.grade === student.grade
+                (p) => p.grades.includes(student.grade)
               );
               const progress =
-                (student.completedProblems.length / gradeProblems.length) * 100;
+                (student.completedProblems.length / Math.max(gradeProblems.length, 1)) * 100;
 
               return (
                 <Link key={student.id} href={`/teacher/students/${student.id}`}>

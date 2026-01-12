@@ -5,6 +5,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password: string; // hashed password
   role: UserRole;
   grade?: number; // 7, 8, 9, or 10 for students
   avatar?: string;
@@ -37,7 +38,7 @@ export interface Topic {
   icon: string;
   color: string;
   documentation: string; // Markdown content
-  grade: number;
+  grades: number[]; // Now supports multiple grades
   problemIds: string[];
 }
 
@@ -66,7 +67,7 @@ export interface Problem {
   solution: string;
   hints: string[];
   testCases: TestCase[];
-  grade: number;
+  grades: number[]; // Now supports multiple grades
 }
 
 // Submission types
@@ -136,4 +137,23 @@ export interface LeaderboardEntry {
   student: Student;
   points: number;
   problemsSolved: number;
+}
+
+// Chat/Message types
+export interface Message {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  content: string;
+  isRead: boolean;
+  createdAt: Date;
+}
+
+export interface Conversation {
+  id: string;
+  studentId: string;
+  teacherId: string;
+  lastMessage?: Message;
+  unreadCount: number;
+  updatedAt: Date;
 }

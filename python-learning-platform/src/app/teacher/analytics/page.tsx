@@ -23,9 +23,9 @@ export default function AnalyticsPage() {
     hard: problems.filter((p) => p.difficulty === 'hard').length,
   };
 
-  // Calculate solve rates
+  // Calculate solve rates - for each problem, count students from applicable grades
   const problemSolveRates = problems.map((problem) => {
-    const gradeStudents = students.filter((s) => s.grade === problem.grade);
+    const gradeStudents = students.filter((s) => problem.grades.includes(s.grade));
     const solvedBy = gradeStudents.filter((s) =>
       s.completedProblems.includes(problem.id)
     ).length;
@@ -37,6 +37,7 @@ export default function AnalyticsPage() {
       solvedBy,
       totalStudents: gradeStudents.length,
       solveRate,
+      displayGrade: problem.grades.join(', '),
     };
   });
 
@@ -80,13 +81,14 @@ export default function AnalyticsPage() {
   // Topic completion rates
   const topicStats = topics.map((topic) => {
     const topicProblems = problems.filter((p) => p.topicId === topic.id);
-    const gradeStudents = students.filter((s) => s.grade === topic.grade);
+    // Get students from all grades that this topic applies to
+    const gradeStudents = students.filter((s) => topic.grades.includes(s.grade));
 
     const completionRates = gradeStudents.map((student) => {
       const completed = topicProblems.filter((p) =>
         student.completedProblems.includes(p.id)
       ).length;
-      return (completed / topicProblems.length) * 100;
+      return topicProblems.length > 0 ? (completed / topicProblems.length) * 100 : 0;
     });
 
     const avgCompletion = completionRates.length > 0
@@ -97,8 +99,19 @@ export default function AnalyticsPage() {
       ...topic,
       problemCount: topicProblems.length,
       avgCompletion: Math.round(avgCompletion),
+      displayGrade: topic.grades.join(', '),
     };
   });
+
+  // Calculate average progress
+  const avgProgress = students.length > 0
+    ? Math.round(
+        students.reduce((sum, s) => {
+          const gp = problems.filter((p) => p.grades.includes(s.grade));
+          return sum + (gp.length > 0 ? (s.completedProblems.length / gp.length) * 100 : 0);
+        }, 0) / students.length
+      )
+    : 0;
 
   return (
     <div className="min-h-screen">
@@ -153,15 +166,7 @@ export default function AnalyticsPage() {
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Ср. прогресс</p>
-                <p className="text-2xl font-bold text-white">
-                  {Math.round(
-                    students.reduce((sum, s) => {
-                      const gp = problems.filter((p) => p.grade === s.grade);
-                      return sum + (s.completedProblems.length / gp.length) * 100;
-                    }, 0) / students.length
-                  )}
-                  %
-                </p>
+                <p className="text-2xl font-bold text-white">{avgProgress}%</p>
               </div>
             </div>
           </Card>
@@ -224,7 +229,7 @@ export default function AnalyticsPage() {
                 >
                   <div>
                     <p className="text-white font-medium">{problem.titleRu}</p>
-                    <p className="text-gray-400 text-sm">{problem.grade} класс</p>
+                    <p className="text-gray-400 text-sm">{problem.displayGrade} кл.</p>
                   </div>
                   <div className="text-right">
                     <p className="text-red-400 font-medium">
@@ -253,7 +258,7 @@ export default function AnalyticsPage() {
                 >
                   <div>
                     <p className="text-white font-medium">{problem.titleRu}</p>
-                    <p className="text-gray-400 text-sm">{problem.grade} класс</p>
+                    <p className="text-gray-400 text-sm">{problem.displayGrade} кл.</p>
                   </div>
                   <div className="text-right">
                     <p className="text-green-400 font-medium">
@@ -281,7 +286,7 @@ export default function AnalyticsPage() {
                   <h3 className="text-white font-medium truncate">
                     {topic.titleRu}
                   </h3>
-                  <span className="text-gray-400 text-xs">{topic.grade} кл</span>
+                  <span className="text-gray-400 text-xs">{topic.displayGrade} кл.</span>
                 </div>
                 <div className="flex justify-between text-xs text-gray-400 mb-1">
                   <span>{topic.problemCount} задач</span>

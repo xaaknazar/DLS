@@ -24,8 +24,8 @@ export default function ContentManagementPage() {
   const [selectedGrade, setSelectedGrade] = useState(7);
   const [activeTab, setActiveTab] = useState<'topics' | 'problems'>('topics');
 
-  const gradeTopics = topics.filter((t) => t.grade === selectedGrade);
-  const gradeProblems = problems.filter((p) => p.grade === selectedGrade);
+  const gradeTopics = topics.filter((t) => t.grades.includes(selectedGrade));
+  const gradeProblems = problems.filter((p) => p.grades.includes(selectedGrade));
 
   const handleDeleteTopic = (topicId: string, topicName: string) => {
     if (confirm(`Удалить тему "${topicName}" и все её задачи?`)) {

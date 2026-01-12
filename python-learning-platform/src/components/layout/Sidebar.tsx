@@ -14,6 +14,7 @@ import {
   BarChart3,
   LogOut,
   GraduationCap,
+  MessageCircle,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -22,6 +23,7 @@ const studentNavItems = [
   { href: '/student/problems', label: 'Задачи', icon: Code },
   { href: '/student/leaderboard', label: 'Рейтинг', icon: Trophy },
   { href: '/student/achievements', label: 'Достижения', icon: Award },
+  { href: '/student/chat', label: 'Чат с учителем', icon: MessageCircle },
 ];
 
 const teacherNavItems = [
@@ -29,6 +31,7 @@ const teacherNavItems = [
   { href: '/teacher/students', label: 'Ученики', icon: Users },
   { href: '/teacher/analytics', label: 'Аналитика', icon: BarChart3 },
   { href: '/teacher/content', label: 'Контент', icon: BookOpen },
+  { href: '/teacher/chat', label: 'Сообщения', icon: MessageCircle },
 ];
 
 export default function Sidebar() {

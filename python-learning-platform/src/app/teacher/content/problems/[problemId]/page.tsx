@@ -18,15 +18,13 @@ export default function EditProblemPage() {
   const searchParams = useSearchParams();
   const problemId = params.problemId as string;
   const isNew = problemId === 'new';
-  const defaultGrade = parseInt(searchParams.get('grade') || '7');
 
-  const { topics, problems, updateProblem, addProblem } = useStore();
+  const { topics, problems, updateProblem, createProblem } = useStore();
   const existingProblem = problems.find((p) => p.id === problemId);
-  const gradeTopics = topics.filter((t) => t.grade === defaultGrade);
 
   const [formData, setFormData] = useState({
     id: '',
-    topicId: gradeTopics[0]?.id || '',
+    topicId: topics[0]?.id || '',
     title: '',
     titleRu: '',
     description: '',
@@ -34,7 +32,7 @@ export default function EditProblemPage() {
     difficulty: 'easy' as Difficulty,
     points: 10,
     order: 1,
-    grade: defaultGrade,
+    grades: [7, 8, 9, 10] as number[],
     starterCode: '# Напишите ваш код здесь\n',
     solution: '',
     hints: [''] as string[],
@@ -55,7 +53,7 @@ export default function EditProblemPage() {
         difficulty: existingProblem.difficulty,
         points: existingProblem.points,
         order: existingProblem.order,
-        grade: existingProblem.grade,
+        grades: existingProblem.grades,
         starterCode: existingProblem.starterCode,
         solution: existingProblem.solution,
         hints: existingProblem.hints.length > 0 ? existingProblem.hints : [''],
@@ -64,13 +62,15 @@ export default function EditProblemPage() {
     }
   }, [isNew, existingProblem]);
 
-  // Update topics when grade changes
-  useEffect(() => {
-    const newGradeTopics = topics.filter((t) => t.grade === formData.grade);
-    if (newGradeTopics.length > 0 && !newGradeTopics.find(t => t.id === formData.topicId)) {
-      setFormData(prev => ({ ...prev, topicId: newGradeTopics[0].id }));
+  const toggleGrade = (grade: number) => {
+    if (formData.grades.includes(grade)) {
+      if (formData.grades.length > 1) {
+        setFormData({ ...formData, grades: formData.grades.filter(g => g !== grade) });
+      }
+    } else {
+      setFormData({ ...formData, grades: [...formData.grades, grade].sort() });
     }
-  }, [formData.grade, topics]);
+  };
 
   const addHint = () => {
     setFormData({ ...formData, hints: [...formData.hints, ''] });
@@ -117,7 +117,7 @@ export default function EditProblemPage() {
     setFormData({ ...formData, testCases: newTestCases });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.titleRu.trim()) {
@@ -135,34 +135,41 @@ export default function EditProblemPage() {
       return;
     }
 
+    if (formData.grades.length === 0) {
+      toast.error('Выберите хотя бы один класс');
+      return;
+    }
+
     // Filter empty hints
     const filteredHints = formData.hints.filter((h) => h.trim() !== '');
 
-    if (isNew) {
-      const newId =
-        formData.titleRu
-          .toLowerCase()
-          .replace(/\s+/g, '-')
-          .replace(/[^a-z0-9-а-яё]/gi, '')
-          .substring(0, 20) +
-        '-' +
-        Date.now().toString(36);
+    try {
+      if (isNew) {
+        const newId =
+          formData.titleRu
+            .toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-а-яё]/gi, '')
+            .substring(0, 20) +
+          '-' +
+          Date.now().toString(36);
 
-      addProblem({
-        ...formData,
-        id: newId,
-        hints: filteredHints,
-      });
-      toast.success('Задача создана');
-    } else {
-      updateProblem(problemId, { ...formData, hints: filteredHints });
-      toast.success('Задача обновлена');
+        await createProblem({
+          ...formData,
+          id: newId,
+          hints: filteredHints,
+        });
+        toast.success('Задача создана');
+      } else {
+        await updateProblem(problemId, { ...formData, hints: filteredHints });
+        toast.success('Задача обновлена');
+      }
+
+      router.push('/teacher/content');
+    } catch (error) {
+      toast.error('Ошибка сохранения');
     }
-
-    router.push('/teacher/content');
   };
-
-  const currentGradeTopics = topics.filter((t) => t.grade === formData.grade);
 
   return (
     <div className="min-h-screen">
@@ -235,25 +242,30 @@ export default function EditProblemPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  Класс
-                </label>
-                <select
-                  value={formData.grade}
-                  onChange={(e) =>
-                    setFormData({ ...formData, grade: parseInt(e.target.value) })
-                  }
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value={7}>7 класс</option>
-                  <option value={8}>8 класс</option>
-                  <option value={9}>9 класс</option>
-                  <option value={10}>10 класс</option>
-                </select>
+            {/* Grades selection - multiple choice */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Для каких классов эта задача
+              </label>
+              <div className="flex gap-3">
+                {[7, 8, 9, 10].map((grade) => (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() => toggleGrade(grade)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                      formData.grades.includes(grade)
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                  >
+                    {grade} класс
+                  </button>
+                ))}
               </div>
+            </div>
 
+            <div className="grid grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1.5">
                   Тема
@@ -265,7 +277,7 @@ export default function EditProblemPage() {
                   }
                   className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {currentGradeTopics.map((topic) => (
+                  {topics.map((topic) => (
                     <option key={topic.id} value={topic.id}>
                       {topic.titleRu}
                     </option>

@@ -21,9 +21,7 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const success = login(email, password);
+    const success = await login(email, password);
 
     if (success) {
       toast.success('Добро пожаловать!');
