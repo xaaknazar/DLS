@@ -101,6 +101,7 @@ export async function executePythonCode(
     // Setup code to capture output and handle input
     const wrappedCode = `
 import sys
+import builtins
 from io import StringIO
 
 # Capture stdout
@@ -119,8 +120,8 @@ def _mock_input(prompt=""):
         return result
     return ""
 
-# Replace built-in input
-__builtins__["input"] = _mock_input
+# Replace built-in input using builtins module
+builtins.input = _mock_input
 
 # Execute user code
 _error = None
