@@ -47,12 +47,12 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-gray-800">
         <Link href={user.role === 'teacher' ? '/teacher' : '/student'} className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <GraduationCap className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden">
+            <img src="/logo.jpg" alt="DLS" className="w-8 h-8 object-contain" />
           </div>
           <div>
-            <h1 className="font-bold text-white">DLS - IT</h1>
-            <p className="text-xs text-gray-500">Учим Python</p>
+            <h1 className="font-bold text-white text-sm">Divergents Leadership School</h1>
+            <p className="text-xs text-gray-500">Informatics</p>
           </div>
         </Link>
       </div>
