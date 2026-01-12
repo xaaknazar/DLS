@@ -3,7 +3,7 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
-  title: "PyLearn - Платформа для изучения Python",
+  title: "DLS - IT | Платформа для изучения Python",
   description: "Интерактивная платформа для обучения Python. Задачи, темы, проверка кода.",
 };
 

@@ -47,7 +47,7 @@ export default function Sidebar() {
             <GraduationCap className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-white">PyLearn</h1>
+            <h1 className="font-bold text-white">DLS - IT</h1>
             <p className="text-xs text-gray-500">Учим Python</p>
           </div>
         </Link>
