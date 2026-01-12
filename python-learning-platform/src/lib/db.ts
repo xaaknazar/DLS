@@ -353,6 +353,9 @@ export async function initializeDatabase(): Promise<void> {
           streakDays: 0,
           lastActiveAt: new Date(),
           createdAt: new Date('2024-09-01'),
+          purchasedItems: [],
+          equippedAvatar: null,
+          equippedFrame: null,
         });
       }
     }

@@ -15,6 +15,9 @@ export const mockStudents: Student[] = [
     streakDays: 0,
     lastActiveAt: new Date(),
     createdAt: new Date('2024-09-01'),
+    purchasedItems: [] as string[],
+    equippedAvatar: null,
+    equippedFrame: null,
   })),
 
   // 8 класс - 20 учеников
@@ -31,6 +34,9 @@ export const mockStudents: Student[] = [
     streakDays: 0,
     lastActiveAt: new Date(),
     createdAt: new Date('2024-09-01'),
+    purchasedItems: [] as string[],
+    equippedAvatar: null,
+    equippedFrame: null,
   })),
 
   // 9 класс - 20 учеников
@@ -47,6 +53,9 @@ export const mockStudents: Student[] = [
     streakDays: 0,
     lastActiveAt: new Date(),
     createdAt: new Date('2024-09-01'),
+    purchasedItems: [] as string[],
+    equippedAvatar: null,
+    equippedFrame: null,
   })),
 
   // 10 класс - 20 учеников
@@ -63,6 +72,9 @@ export const mockStudents: Student[] = [
     streakDays: 0,
     lastActiveAt: new Date(),
     createdAt: new Date('2024-09-01'),
+    purchasedItems: [] as string[],
+    equippedAvatar: null,
+    equippedFrame: null,
   })),
 ];
 
