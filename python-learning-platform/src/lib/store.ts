@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, Student, Submission, Problem } from '@/types';
+import { User, Student, Submission, Problem, Topic } from '@/types';
 import { mockStudents } from '@/data/students';
+import { topics as initialTopics } from '@/data/topics';
+import { problems as initialProblems } from '@/data/problems';
 
 interface AppState {
   // Auth
@@ -14,6 +16,17 @@ interface AppState {
   students: Student[];
   getStudentsByGrade: (grade: number) => Student[];
   updateStudentProgress: (studentId: string, problemId: string, points: number) => void;
+  resetStudentProgress: (studentId: string) => void;
+
+  // Topics & Problems (editable)
+  topics: Topic[];
+  problems: Problem[];
+  updateTopic: (topicId: string, updates: Partial<Topic>) => void;
+  addTopic: (topic: Topic) => void;
+  deleteTopic: (topicId: string) => void;
+  updateProblem: (problemId: string, updates: Partial<Problem>) => void;
+  addProblem: (problem: Problem) => void;
+  deleteProblem: (problemId: string) => void;
 
   // Submissions
   submissions: Submission[];
@@ -54,7 +67,7 @@ export const useStore = create<AppState>()(
         if (studentMatch && password === 'student123') {
           const grade = parseInt(studentMatch[1]);
           const num = parseInt(studentMatch[2]);
-          const student = mockStudents.find(
+          const student = get().students.find(
             s => s.grade === grade && s.id === `student-${grade}-${num}`
           );
           if (student) {
@@ -109,6 +122,61 @@ export const useStore = create<AppState>()(
         });
       },
 
+      resetStudentProgress: (studentId: string) => {
+        set((state) => ({
+          students: state.students.map((s) =>
+            s.id === studentId
+              ? { ...s, completedProblems: [], points: 0 }
+              : s
+          ),
+        }));
+      },
+
+      // Topics & Problems
+      topics: initialTopics,
+      problems: initialProblems,
+
+      updateTopic: (topicId: string, updates: Partial<Topic>) => {
+        set((state) => ({
+          topics: state.topics.map((t) =>
+            t.id === topicId ? { ...t, ...updates } : t
+          ),
+        }));
+      },
+
+      addTopic: (topic: Topic) => {
+        set((state) => ({
+          topics: [...state.topics, topic],
+        }));
+      },
+
+      deleteTopic: (topicId: string) => {
+        set((state) => ({
+          topics: state.topics.filter((t) => t.id !== topicId),
+          problems: state.problems.filter((p) => p.topicId !== topicId),
+        }));
+      },
+
+      updateProblem: (problemId: string, updates: Partial<Problem>) => {
+        set((state) => ({
+          problems: state.problems.map((p) =>
+            p.id === problemId ? { ...p, ...updates } : p
+          ),
+        }));
+      },
+
+      addProblem: (problem: Problem) => {
+        set((state) => ({
+          problems: [...state.problems, problem],
+        }));
+      },
+
+      deleteProblem: (problemId: string) => {
+        set((state) => ({
+          problems: state.problems.filter((p) => p.id !== problemId),
+        }));
+      },
+
       // Submissions
       submissions: [],
 
@@ -137,7 +205,30 @@ export const useStore = create<AppState>()(
         isAuthenticated: state.isAuthenticated,
         students: state.students,
         submissions: state.submissions,
+        topics: state.topics,
+        problems: state.problems,
       }),
     }
   )
 );
+
+// Helper functions that use store data
+export const getTopicsByGrade = (grade: number): Topic[] => {
+  return useStore.getState().topics.filter(topic => topic.grade === grade).sort((a, b) => a.order - b.order);
+};
+
+export const getTopicById = (id: string): Topic | undefined => {
+  return useStore.getState().topics.find(topic => topic.id === id);
+};
+
+export const getProblemsByTopic = (topicId: string): Problem[] => {
+  return useStore.getState().problems.filter(p => p.topicId === topicId).sort((a, b) => a.order - b.order);
+};
+
+export const getProblemById = (id: string): Problem | undefined => {
+  return useStore.getState().problems.find(p => p.id === id);
+};
+
+export const getProblemsByGrade = (grade: number): Problem[] => {
+  return useStore.getState().problems.filter(p => p.grade === grade);
+};

@@ -7,8 +7,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Progress from '@/components/ui/Progress';
 import Button from '@/components/ui/Button';
-import { getTopicsByGrade } from '@/data/topics';
-import { getProblemsByTopic, problems as allProblems } from '@/data/problems';
+import { getTopicsByGrade, getProblemsByTopic } from '@/lib/store';
 import { achievements } from '@/data/achievements';
 import { formatDate, getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
 import Link from 'next/link';
@@ -28,7 +27,7 @@ import {
 export default function StudentDetailPage() {
   const params = useParams();
   const studentId = params.studentId as string;
-  const { students, submissions } = useStore();
+  const { students, submissions, problems: allProblems } = useStore();
 
   const student = students.find((s) => s.id === studentId);
   if (!student) return <div>Ученик не найден</div>;

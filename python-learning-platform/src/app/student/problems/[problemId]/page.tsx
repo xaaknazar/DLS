@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { Student, TestResult, Submission } from '@/types';
 import Header from '@/components/layout/Header';
@@ -10,9 +10,9 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import CodeEditor from '@/components/code-editor/CodeEditor';
 import TestResults from '@/components/code-editor/TestResults';
-import { getProblemById, getProblemsByTopic } from '@/data/problems';
-import { getTopicById } from '@/data/topics';
+import { getProblemById, getProblemsByTopic, getTopicById } from '@/lib/store';
 import { getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
+import { executePythonCode, usePyodide } from '@/lib/pyodide';
 import toast from 'react-hot-toast';
 import {
   Star,
@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   PartyPopper,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -32,6 +33,7 @@ export default function ProblemPage() {
   const problemId = params.problemId as string;
   const { user, addSubmission, updateStudentProgress } = useStore();
   const student = user as Student;
+  const { isLoading: pyodideLoading, isReady: pyodideReady } = usePyodide();
 
   const [isRunning, setIsRunning] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
@@ -63,46 +65,39 @@ export default function ProblemPage() {
   };
 
   const runCode = useCallback(async (code: string) => {
+    if (!pyodideReady) {
+      toast.error('Python загружается, подождите...');
+      return;
+    }
+
     setIsRunning(true);
     setTestResults([]);
     setShowSuccess(false);
 
-    // Simulate code execution with test cases
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const results: TestResult[] = [];
 
-    const results: TestResult[] = problem.testCases
-      .filter((tc) => !tc.isHidden || isCompleted)
-      .map((testCase) => {
-        const startTime = Date.now();
-        let passed = false;
-        let actualOutput = '';
-        let error = '';
+    // Run code against all test cases
+    for (const testCase of problem.testCases) {
+      if (testCase.isHidden && !isCompleted) continue;
 
-        try {
-          if (code.includes('print') && code.length > 10) {
-            actualOutput = testCase.expectedOutput;
-            passed = actualOutput.trim() === testCase.expectedOutput.trim();
-          } else {
-            actualOutput = 'Нет вывода';
-            passed = false;
-          }
-        } catch (e) {
-          error = 'Ошибка выполнения';
-          passed = false;
-        }
+      const startTime = Date.now();
+      const result = await executePythonCode(code, testCase.input);
+      const executionTime = Date.now() - startTime;
 
-        const executionTime = Date.now() - startTime;
+      const actualOutput = result.output.trim();
+      const expectedOutput = testCase.expectedOutput.trim();
+      const passed = !result.error && actualOutput === expectedOutput;
 
-        return {
-          testCaseId: testCase.id,
-          passed,
-          input: testCase.input,
-          expectedOutput: testCase.expectedOutput,
-          actualOutput,
-          executionTime,
-          error,
-        };
+      results.push({
+        testCaseId: testCase.id,
+        passed,
+        input: testCase.input,
+        expectedOutput: testCase.expectedOutput,
+        actualOutput: result.error ? `Ошибка: ${result.error}` : result.output,
+        executionTime,
+        error: result.error || undefined,
       });
+    }
 
     setTestResults(results);
 
@@ -136,7 +131,7 @@ export default function ProblemPage() {
     }
 
     setIsRunning(false);
-  }, [problem, student, isCompleted, addSubmission, updateStudentProgress]);
+  }, [problem, student, isCompleted, pyodideReady, addSubmission, updateStudentProgress]);
 
   return (
     <div className="min-h-screen">
@@ -144,6 +139,14 @@ export default function ProblemPage() {
         title={problem.titleRu}
         subtitle={topic?.titleRu}
       />
+
+      {/* Pyodide Loading Indicator */}
+      {pyodideLoading && (
+        <div className="fixed top-20 right-8 z-40 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-2 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+          <span className="text-blue-400 text-sm">Загрузка Python...</span>
+        </div>
+      )}
 
       {/* Success Modal */}
       {showSuccess && (

@@ -5,7 +5,6 @@ import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Progress from '@/components/ui/Progress';
 import Badge from '@/components/ui/Badge';
-import { problems } from '@/data/problems';
 import Link from 'next/link';
 import {
   Users,
@@ -19,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function TeacherDashboard() {
-  const { students, submissions } = useStore();
+  const { students, submissions, problems, topics } = useStore();
 
   // Calculate stats
   const totalStudents = students.length;
@@ -248,7 +247,7 @@ export default function TeacherDashboard() {
                   <BookOpen className="w-5 h-5 text-blue-400" />
                   <span className="text-gray-300">Всего тем</span>
                 </div>
-                <span className="text-white font-bold">16</span>
+                <span className="text-white font-bold">{topics.length}</span>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl">

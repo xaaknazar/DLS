@@ -4,8 +4,6 @@ import { useStore } from '@/lib/store';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Progress from '@/components/ui/Progress';
-import { problems } from '@/data/problems';
-import { topics } from '@/data/topics';
 import {
   BarChart3,
   TrendingUp,
@@ -16,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function AnalyticsPage() {
-  const { students, submissions } = useStore();
+  const { students, submissions, problems, topics } = useStore();
 
   // Calculate difficulty distribution
   const difficultyStats = {

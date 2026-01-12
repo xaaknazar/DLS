@@ -28,6 +28,7 @@ const teacherNavItems = [
   { href: '/teacher', label: 'Обзор', icon: Home },
   { href: '/teacher/students', label: 'Ученики', icon: Users },
   { href: '/teacher/analytics', label: 'Аналитика', icon: BarChart3 },
+  { href: '/teacher/content', label: 'Контент', icon: BookOpen },
 ];
 
 export default function Sidebar() {

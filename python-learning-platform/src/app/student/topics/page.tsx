@@ -6,8 +6,7 @@ import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Progress from '@/components/ui/Progress';
 import Badge from '@/components/ui/Badge';
-import { getTopicsByGrade } from '@/data/topics';
-import { getProblemsByTopic } from '@/data/problems';
+import { getTopicsByGrade, getProblemsByTopic } from '@/lib/store';
 import Link from 'next/link';
 import {
   BookOpen,
