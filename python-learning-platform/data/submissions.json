@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "studentId": "student-7-1",
+    "problemId": "var-1",
+    "code": "x=1",
+    "status": "passed",
+    "output": "1",
+    "id": "submission-1768246277961",
+    "submittedAt": "2026-01-12T19:31:17.961Z"
+  }
+]

@@ -20,11 +20,13 @@
     "password": "student123",
     "role": "student",
     "grade": 7,
-    "completedProblems": [],
-    "points": 0,
+    "completedProblems": [
+      "var-1"
+    ],
+    "points": 10,
     "achievements": [],
     "streakDays": 0,
-    "lastActiveAt": "2026-01-12T10:36:17.506Z",
+    "lastActiveAt": "2026-01-12T19:31:17.970Z",
     "createdAt": "2024-09-01T00:00:00.000Z"
   },
   {

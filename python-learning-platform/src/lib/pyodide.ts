@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
-// Pyodide CDN configuration
+// Pyodide CDN configuration with fallback
 const PYODIDE_VERSION = '0.25.1';
-const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+const PYODIDE_CDNS = [
+  `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`,
+  `https://pyodide-cdn2.iodide.io/v${PYODIDE_VERSION}/full/`,
+];
 
 interface PyodideInterface {
   runPythonAsync: (code: string) => Promise<any>;
@@ -21,6 +24,46 @@ declare global {
 let pyodideInstance: PyodideInterface | null = null;
 let pyodideLoading: Promise<PyodideInterface> | null = null;
 let loadError: Error | null = null;
+let currentCdnIndex = 0;
+
+async function loadScript(url: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    // Check if script already loaded
+    const existingScript = document.querySelector(`script[src="${url}"]`);
+    if (existingScript) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = url;
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+
+    const timeout = setTimeout(() => {
+      script.remove();
+      reject(new Error('Timeout loading Pyodide script'));
+    }, 60000); // Increased timeout to 60 seconds
+
+    script.onload = () => {
+      clearTimeout(timeout);
+      // Verify that loadPyodide function exists
+      if (typeof window.loadPyodide === 'function') {
+        resolve();
+      } else {
+        reject(new Error('Pyodide script loaded but loadPyodide not found'));
+      }
+    };
+
+    script.onerror = () => {
+      clearTimeout(timeout);
+      script.remove();
+      reject(new Error('Failed to load Pyodide script'));
+    };
+
+    document.head.appendChild(script);
+  });
+}
 
 export async function loadPyodideInstance(): Promise<PyodideInterface> {
   if (loadError) {
@@ -36,42 +79,44 @@ export async function loadPyodideInstance(): Promise<PyodideInterface> {
   }
 
   pyodideLoading = (async () => {
-    try {
-      // Load Pyodide script if not loaded
-      if (!window.loadPyodide) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = `${PYODIDE_CDN}pyodide.js`;
-          script.async = true;
-          script.crossOrigin = 'anonymous';
+    let lastError: Error | null = null;
 
-          const timeout = setTimeout(() => {
-            reject(new Error('Timeout loading Pyodide script'));
-          }, 30000);
+    // Try each CDN
+    for (let i = 0; i < PYODIDE_CDNS.length; i++) {
+      const cdnUrl = PYODIDE_CDNS[i];
+      currentCdnIndex = i;
 
-          script.onload = () => {
-            clearTimeout(timeout);
-            resolve();
-          };
-          script.onerror = (e) => {
-            clearTimeout(timeout);
-            reject(new Error('Failed to load Pyodide script'));
-          };
-          document.head.appendChild(script);
+      try {
+        // Load Pyodide script if not loaded
+        if (!window.loadPyodide) {
+          console.log(`Loading Pyodide from: ${cdnUrl}`);
+          await loadScript(`${cdnUrl}pyodide.js`);
+        }
+
+        // Initialize Pyodide with indexURL
+        console.log('Initializing Pyodide...');
+        pyodideInstance = await window.loadPyodide({
+          indexURL: cdnUrl,
         });
+
+        console.log('Pyodide loaded successfully!');
+        return pyodideInstance;
+      } catch (error) {
+        lastError = error as Error;
+        console.error(`Failed to load Pyodide from ${cdnUrl}:`, error);
+
+        // Reset for next attempt
+        window.loadPyodide = undefined as any;
+
+        // Continue to next CDN
+        continue;
       }
-
-      // Initialize Pyodide with indexURL
-      pyodideInstance = await window.loadPyodide({
-        indexURL: PYODIDE_CDN,
-      });
-
-      return pyodideInstance;
-    } catch (error) {
-      loadError = error as Error;
-      pyodideLoading = null;
-      throw error;
     }
+
+    // All CDNs failed
+    loadError = lastError || new Error('Failed to load Pyodide from all CDNs');
+    pyodideLoading = null;
+    throw loadError;
   })();
 
   return pyodideLoading;
@@ -96,7 +141,11 @@ export async function executePythonCode(
     const inputLines = input.split('\n');
 
     // Escape the code properly for embedding in Python string
-    const escapedCode = code.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'");
+    const escapedCode = code
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/'/g, "\\'")
+      .replace(/\n/g, '\\n');
 
     // Setup code to capture output and handle input
     const wrappedCode = `
@@ -126,7 +175,7 @@ builtins.input = _mock_input
 # Execute user code
 _error = None
 try:
-    exec('''${escapedCode.replace(/'''/g, "\\'\\'\\'")}''')
+    exec("""${escapedCode}""")
 except Exception as e:
     _error = str(e)
 
