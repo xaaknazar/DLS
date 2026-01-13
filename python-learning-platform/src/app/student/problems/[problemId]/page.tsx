@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { Student, TestResult, Submission, Problem, Topic } from '@/types';
+import { Student, TestResult, Problem, Topic } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -45,6 +45,7 @@ export default function ProblemPage() {
   const [topic, setTopic] = useState<Topic | null>(null);
   const [isLoadingProblem, setIsLoadingProblem] = useState(true);
 
+  // Load problem effect
   useEffect(() => {
     const fetchProblem = async () => {
       setIsLoadingProblem(true);
@@ -90,47 +91,26 @@ export default function ProblemPage() {
     fetchProblem();
   }, [problemId, problems.length, topics.length, loadProblems, loadTopics]);
 
-  if (!student) return null;
-
-  if (isLoadingProblem) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-      </div>
-    );
-  }
-
-  if (!problem) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-white mb-2">Задача не найдена</h2>
-          <p className="text-gray-400 mb-4">ID: {problemId}</p>
-          <Link href="/student">
-            <Button>На главную</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const isCompleted = student.completedProblems.includes(problem.id);
-
-  // Get next problem
-  const topicProblems = getProblemsByTopic(problem.topicId);
-  const currentIndex = topicProblems.findIndex(p => p.id === problem.id);
+  // Compute derived values
+  const isCompleted = student?.completedProblems?.includes(problem?.id || '') || false;
+  const topicProblems = problem ? getProblemsByTopic(problem.topicId) : [];
+  const currentIndex = problem ? topicProblems.findIndex(p => p.id === problem.id) : -1;
   const nextProblem = topicProblems[currentIndex + 1];
 
-  const goToNextProblem = () => {
+  // Navigation function
+  const goToNextProblem = useCallback(() => {
     setShowSuccess(false);
     if (nextProblem) {
       router.push(`/student/problems/${nextProblem.id}`);
-    } else {
+    } else if (problem) {
       router.push(`/student/topics/${problem.topicId}`);
     }
-  };
+  }, [nextProblem, problem, router]);
 
+  // Run code callback - must be before any conditional returns
   const runCode = useCallback(async (code: string) => {
+    if (!problem || !student) return;
+
     if (!pyodideReady) {
       toast.error('Python загружается, подождите...');
       return;
@@ -181,7 +161,7 @@ export default function ProblemPage() {
         passedTests: passedCount,
         totalTests: results.length,
         executionTime: results.reduce((sum, r) => sum + r.executionTime, 0),
-      } as any); // points is handled server-side
+      } as any);
 
       if (allPassed && !isCompleted) {
         setEarnedPoints(problem.points);
@@ -197,6 +177,31 @@ export default function ProblemPage() {
 
     setIsRunning(false);
   }, [problem, student, isCompleted, pyodideReady, createSubmission]);
+
+  // Now the conditional returns
+  if (!student) return null;
+
+  if (isLoadingProblem) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!problem) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Задача не найдена</h2>
+          <p className="text-gray-400 mb-4">ID: {problemId}</p>
+          <Link href="/student">
+            <Button>На главную</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
