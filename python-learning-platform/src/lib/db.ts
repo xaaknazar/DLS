@@ -1,7 +1,12 @@
 import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
 
 // Check if we're on Vercel with KV configured
-const isVercelKV = typeof process !== 'undefined' && process.env.KV_REST_API_URL;
+const isVercelKV = typeof process !== 'undefined' && process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+
+// Log storage mode on startup
+if (typeof process !== 'undefined') {
+  console.log(`[DB] Storage mode: ${isVercelKV ? 'Vercel KV (Redis)' : 'In-Memory'}`);
+}
 
 // In-memory storage for local development and fallback
 let memoryStore: {
