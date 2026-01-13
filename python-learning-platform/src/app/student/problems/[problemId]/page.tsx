@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { Student, TestResult, Submission } from '@/types';
+import { Student, TestResult, Submission, Problem, Topic } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -30,8 +30,8 @@ import Link from 'next/link';
 export default function ProblemPage() {
   const params = useParams();
   const router = useRouter();
-  const problemId = params.problemId as string;
-  const { user, createSubmission } = useStore();
+  const problemId = decodeURIComponent(params.problemId as string);
+  const { user, createSubmission, problems, loadProblems, topics, loadTopics } = useStore();
   const student = user as Student;
   const { isLoading: pyodideLoading, isReady: pyodideReady } = usePyodide();
 
@@ -41,13 +41,79 @@ export default function ProblemPage() {
   const [hintsRevealed, setHintsRevealed] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const [topic, setTopic] = useState<Topic | null>(null);
+  const [isLoadingProblem, setIsLoadingProblem] = useState(true);
+
+  useEffect(() => {
+    const fetchProblem = async () => {
+      setIsLoadingProblem(true);
+
+      // First try from store
+      let foundProblem = getProblemById(problemId);
+
+      // If not found, fetch from API
+      if (!foundProblem) {
+        try {
+          // Try to fetch problems if not loaded
+          if (problems.length === 0) {
+            await loadProblems();
+          }
+          foundProblem = getProblemById(problemId);
+
+          // Still not found? Try fetching directly
+          if (!foundProblem) {
+            const response = await fetch(`/api/problems/${encodeURIComponent(problemId)}`);
+            if (response.ok) {
+              foundProblem = await response.json();
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch problem:', e);
+        }
+      }
+
+      if (foundProblem) {
+        setProblem(foundProblem);
+
+        // Load topic if needed
+        if (topics.length === 0) {
+          await loadTopics();
+        }
+        const foundTopic = getTopicById(foundProblem.topicId);
+        setTopic(foundTopic || null);
+      }
+
+      setIsLoadingProblem(false);
+    };
+
+    fetchProblem();
+  }, [problemId, problems.length, topics.length, loadProblems, loadTopics]);
 
   if (!student) return null;
 
-  const problem = getProblemById(problemId);
-  if (!problem) return <div>Задача не найдена</div>;
+  if (isLoadingProblem) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
-  const topic = getTopicById(problem.topicId);
+  if (!problem) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Задача не найдена</h2>
+          <p className="text-gray-400 mb-4">ID: {problemId}</p>
+          <Link href="/student">
+            <Button>На главную</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const isCompleted = student.completedProblems.includes(problem.id);
 
   // Get next problem

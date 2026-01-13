@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
-import { TestCase, Difficulty } from '@/types';
+import { TestCase, Difficulty, Problem } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -16,11 +16,12 @@ export default function EditProblemPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const problemId = params.problemId as string;
+  const problemId = decodeURIComponent(params.problemId as string);
   const isNew = problemId === 'new';
 
-  const { topics, problems, updateProblem, createProblem } = useStore();
-  const existingProblem = problems.find((p) => p.id === problemId);
+  const { topics, problems, updateProblem, createProblem, loadProblems, loadTopics } = useStore();
+  const [existingProblem, setExistingProblem] = useState<Problem | null>(null);
+  const [isLoading, setIsLoading] = useState(!isNew);
 
   const [formData, setFormData] = useState({
     id: '',
@@ -41,6 +42,53 @@ export default function EditProblemPage() {
     ] as TestCase[],
   });
 
+  // Load problem from API
+  useEffect(() => {
+    const fetchProblem = async () => {
+      if (isNew) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Load topics if needed
+      if (topics.length === 0) {
+        await loadTopics();
+      }
+
+      // Try to find in store first
+      let found = problems.find((p) => p.id === problemId);
+
+      // If not found, try loading problems
+      if (!found && problems.length === 0) {
+        await loadProblems();
+        found = problems.find((p) => p.id === problemId);
+      }
+
+      // Still not found? Try API directly
+      if (!found) {
+        try {
+          const response = await fetch(`/api/problems/${encodeURIComponent(problemId)}`);
+          if (response.ok) {
+            found = await response.json();
+          }
+        } catch (e) {
+          console.error('Failed to fetch problem:', e);
+        }
+      }
+
+      if (found) {
+        setExistingProblem(found);
+      }
+
+      setIsLoading(false);
+    };
+
+    fetchProblem();
+  }, [isNew, problemId, problems, topics.length, loadProblems, loadTopics]);
+
+  // Update form when problem is loaded
   useEffect(() => {
     if (!isNew && existingProblem) {
       setFormData({
@@ -61,6 +109,13 @@ export default function EditProblemPage() {
       });
     }
   }, [isNew, existingProblem]);
+
+  // Set default topic when topics load
+  useEffect(() => {
+    if (topics.length > 0 && !formData.topicId) {
+      setFormData(prev => ({ ...prev, topicId: topics[0].id }));
+    }
+  }, [topics, formData.topicId]);
 
   const toggleGrade = (grade: number) => {
     if (formData.grades.includes(grade)) {
@@ -170,6 +225,28 @@ export default function EditProblemPage() {
       toast.error('Ошибка сохранения');
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isNew && !existingProblem) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Задача не найдена</h2>
+          <p className="text-gray-400 mb-4">ID: {problemId}</p>
+          <Link href="/teacher/content">
+            <Button>Назад к контенту</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
