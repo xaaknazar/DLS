@@ -1,31 +1,50 @@
 import { NextResponse } from 'next/server';
+import Redis from 'ioredis';
 
 export async function GET() {
+  const redisUrl = process.env.REDIS_URL;
   const hasKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
-  let kvWorking = false;
+  let dbWorking = false;
   let error = null;
+  let dbType = 'In-Memory (не сохраняется)';
 
-  if (hasKV) {
+  // Check standard Redis first
+  if (redisUrl) {
+    dbType = 'Redis';
+    try {
+      const client = new Redis(redisUrl);
+      await client.set('_health_check', Date.now().toString());
+      const value = await client.get('_health_check');
+      dbWorking = !!value;
+      await client.quit();
+    } catch (e: any) {
+      error = e.message;
+    }
+  }
+  // Then check Vercel KV
+  else if (hasKV) {
+    dbType = 'Vercel KV';
     try {
       const { kv } = await import('@vercel/kv');
-      // Test write and read
       await kv.set('_health_check', Date.now());
       const value = await kv.get('_health_check');
-      kvWorking = !!value;
+      dbWorking = !!value;
     } catch (e: any) {
       error = e.message;
     }
   }
 
+  const isConfigured = !!redisUrl || hasKV;
+
   return NextResponse.json({
-    database: hasKV ? 'Vercel KV (Redis)' : 'In-Memory (не сохраняется)',
-    connected: hasKV,
-    working: kvWorking,
+    database: dbType,
+    connected: isConfigured,
+    working: dbWorking,
     error,
-    message: hasKV
-      ? (kvWorking ? '✅ База данных работает! Данные сохраняются.' : '❌ Ошибка подключения к KV')
-      : '⚠️ KV не настроен. Данные сбрасываются при перезапуске сервера.',
+    message: isConfigured
+      ? (dbWorking ? '✅ База данных работает! Данные сохраняются.' : `❌ Ошибка подключения: ${error}`)
+      : '⚠️ База данных не настроена. Данные сбрасываются при перезапуске сервера.',
     timestamp: new Date().toISOString(),
   });
 }

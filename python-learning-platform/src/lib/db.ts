@@ -1,11 +1,28 @@
 import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
+import Redis from 'ioredis';
 
-// Check if we're on Vercel with KV configured
+// Check for Redis connection
+const redisUrl = typeof process !== 'undefined' ? process.env.REDIS_URL : null;
 const isVercelKV = typeof process !== 'undefined' && process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+const hasRedis = !!redisUrl || isVercelKV;
+
+// Redis client for standard Redis
+let redisClient: Redis | null = null;
+
+function getRedisClient(): Redis | null {
+  if (!redisUrl) return null;
+  if (!redisClient) {
+    redisClient = new Redis(redisUrl);
+    redisClient.on('error', (err) => console.error('[Redis] Connection error:', err));
+    redisClient.on('connect', () => console.log('[Redis] Connected successfully'));
+  }
+  return redisClient;
+}
 
 // Log storage mode on startup
 if (typeof process !== 'undefined') {
-  console.log(`[DB] Storage mode: ${isVercelKV ? 'Vercel KV (Redis)' : 'In-Memory'}`);
+  const mode = redisUrl ? 'Redis' : (isVercelKV ? 'Vercel KV' : 'In-Memory');
+  console.log(`[DB] Storage mode: ${mode}`);
 }
 
 // In-memory storage for local development and fallback
@@ -24,6 +41,29 @@ let memoryStore: {
 };
 
 let initialized = false;
+
+// Redis helpers for standard Redis
+async function redisGet<T>(key: string): Promise<T | null> {
+  const client = getRedisClient();
+  if (!client) return null;
+  try {
+    const data = await client.get(`dls:${key}`);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error('[Redis] Get error:', e);
+    return null;
+  }
+}
+
+async function redisSet<T>(key: string, value: T): Promise<void> {
+  const client = getRedisClient();
+  if (!client) return;
+  try {
+    await client.set(`dls:${key}`, JSON.stringify(value));
+  } catch (e) {
+    console.error('[Redis] Set error:', e);
+  }
+}
 
 // KV helpers (only used when Vercel KV is configured)
 async function kvGet<T>(key: string): Promise<T | null> {
@@ -46,19 +86,33 @@ async function kvSet<T>(key: string, value: T): Promise<void> {
   }
 }
 
-// Storage abstraction
+// Storage abstraction - supports Redis, Vercel KV, or In-Memory
 async function getData<T>(key: string, defaultValue: T): Promise<T> {
+  // Try standard Redis first
+  if (redisUrl) {
+    const data = await redisGet<T>(key);
+    return data ?? defaultValue;
+  }
+  // Then try Vercel KV
   if (isVercelKV) {
     const data = await kvGet<T>(key);
     return data ?? defaultValue;
   }
+  // Fallback to memory
   return (memoryStore as any)[key] ?? defaultValue;
 }
 
 async function setData<T>(key: string, data: T): Promise<void> {
+  // Try standard Redis first
+  if (redisUrl) {
+    await redisSet(key, data);
+    return;
+  }
+  // Then try Vercel KV
   if (isVercelKV) {
     await kvSet(key, data);
   }
+  // Always update memory store as cache
   (memoryStore as any)[key] = data;
 }
 
