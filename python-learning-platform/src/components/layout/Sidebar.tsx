@@ -13,6 +13,7 @@ import {
   Trophy,
   Award,
   Users,
+  UserCog,
   BarChart3,
   LogOut,
   GraduationCap,
@@ -33,6 +34,7 @@ const studentNavItems = [
 const teacherNavItems = [
   { href: '/teacher', label: 'Обзор', icon: Home },
   { href: '/teacher/students', label: 'Ученики', icon: Users },
+  { href: '/teacher/students/manage', label: 'Управление', icon: UserCog },
   { href: '/teacher/analytics', label: 'Аналитика', icon: BarChart3 },
   { href: '/teacher/content', label: 'Контент', icon: BookOpen },
   { href: '/teacher/chat', label: 'Сообщения', icon: MessageCircle },
