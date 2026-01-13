@@ -89,7 +89,7 @@ export async function POST() {
       id: 'teacher-1',
       name: 'Aknazar Arturovich',
       email: 'teacher@school.edu',
-      password: 'teacher123',
+      password: 'Khalif1949',
       role: 'teacher',
       classes: [7, 8, 9, 10],
       createdAt: new Date().toISOString(),
