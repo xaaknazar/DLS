@@ -7,6 +7,7 @@ import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import MarkdownEditor from '@/components/editor/MarkdownEditor';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -115,7 +116,7 @@ export default function EditTopicPage() {
           </Button>
         </Link>
 
-        <form onSubmit={handleSubmit} className="max-w-4xl">
+        <form onSubmit={handleSubmit} className="max-w-5xl">
           <Card className="p-6 space-y-6">
             <div className="grid grid-cols-2 gap-6">
               <Input
@@ -156,45 +157,32 @@ export default function EditTopicPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Классы
-              </label>
-              <div className="flex gap-2">
-                {[7, 8, 9, 10].map((grade) => (
-                  <button
-                    key={grade}
-                    type="button"
-                    onClick={() => toggleGrade(grade)}
-                    className={`px-4 py-2 rounded-xl font-medium transition-all ${
-                      formData.grades.includes(grade)
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    }`}
-                  >
-                    {grade} класс
-                  </button>
-                ))}
-              </div>
-              <p className="text-gray-500 text-sm mt-1">
-                Выбрано: {formData.grades.sort().join(', ')} класс
-              </p>
-            </div>
-
             <div className="grid grid-cols-2 gap-6">
-              <Input
-                label="Порядок"
-                type="number"
-                value={formData.order}
-                onChange={(e) =>
-                  setFormData({ ...formData, order: parseInt(e.target.value) })
-                }
-                min={1}
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Классы
+                </label>
+                <div className="flex gap-2">
+                  {[7, 8, 9, 10].map((grade) => (
+                    <button
+                      key={grade}
+                      type="button"
+                      onClick={() => toggleGrade(grade)}
+                      className={`px-4 py-2 rounded-xl font-medium transition-all ${
+                        formData.grades.includes(grade)
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      }`}
+                    >
+                      {grade} класс
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  Цвет
+                  Цвет темы
                 </label>
                 <select
                   value={formData.color}
@@ -208,22 +196,26 @@ export default function EditTopicPage() {
                   <option value="purple">Фиолетовый</option>
                   <option value="orange">Оранжевый</option>
                   <option value="red">Красный</option>
+                  <option value="yellow">Жёлтый</option>
+                  <option value="pink">Розовый</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Документация (Markdown)
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Документация
               </label>
-              <textarea
+              <p className="text-gray-500 text-sm mb-3">
+                Используйте Markdown для форматирования. Кнопки на панели помогут добавить код, заголовки и списки.
+              </p>
+              <MarkdownEditor
                 value={formData.documentation}
-                onChange={(e) =>
-                  setFormData({ ...formData, documentation: e.target.value })
+                onChange={(value) =>
+                  setFormData({ ...formData, documentation: value })
                 }
-                placeholder="# Заголовок&#10;&#10;Текст документации с поддержкой **Markdown**..."
-                rows={20}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-y"
+                placeholder="# Название темы&#10;&#10;Описание темы...&#10;&#10;```python&#10;# Пример кода&#10;print('Hello!')&#10;```"
+                minHeight={500}
               />
             </div>
 

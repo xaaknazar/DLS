@@ -32,7 +32,6 @@ export default function EditProblemPage() {
     descriptionRu: '',
     difficulty: 'easy' as Difficulty,
     points: 10,
-    order: 1,
     grades: [7, 8, 9, 10] as number[],
     starterCode: '# Напишите ваш код здесь\n',
     solution: '',
@@ -100,7 +99,6 @@ export default function EditProblemPage() {
         descriptionRu: existingProblem.descriptionRu,
         difficulty: existingProblem.difficulty,
         points: existingProblem.points,
-        order: existingProblem.order,
         grades: existingProblem.grades,
         starterCode: existingProblem.starterCode,
         solution: existingProblem.solution,
@@ -209,9 +207,16 @@ export default function EditProblemPage() {
           '-' +
           Date.now().toString(36);
 
+        // Auto-calculate order: add to end of topic
+        const topicProblems = problems.filter(p => p.topicId === formData.topicId);
+        const maxOrder = topicProblems.length > 0
+          ? Math.max(...topicProblems.map(p => p.order))
+          : 0;
+
         await createProblem({
           ...formData,
           id: newId,
+          order: maxOrder + 1,
           hints: filteredHints,
         });
         toast.success('Задача создана');
@@ -393,15 +398,6 @@ export default function EditProblemPage() {
               />
             </div>
 
-            <Input
-              label="Порядок"
-              type="number"
-              value={formData.order}
-              onChange={(e) =>
-                setFormData({ ...formData, order: parseInt(e.target.value) })
-              }
-              min={1}
-            />
           </Card>
 
           {/* Code */}
