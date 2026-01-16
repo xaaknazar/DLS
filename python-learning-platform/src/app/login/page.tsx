@@ -39,25 +39,13 @@ export default function LoginPage() {
     setIsLoading(false);
   };
 
-  const fillTeacherCredentials = () => {
-    setEmail('teacher@school.edu');
-    setPassword('teacher123');
-  };
-
-  const fillStudentCredentials = () => {
-    setEmail('student7_1@school.edu');
-    setPassword('student123');
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-8 bg-gray-950">
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center overflow-hidden">
-            <span className="text-white font-bold text-2xl">D</span>
-          </div>
-          <h1 className="text-xl font-bold text-white">Divergents Leadership School</h1>
+        {/* Title */}
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-bold text-white">Divergents Leadership School</h1>
+          <p className="text-gray-500">Informatics</p>
         </div>
 
         <div className="text-center mb-8">
@@ -104,22 +92,6 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        {/* Demo credentials */}
-        <div className="mt-8 pt-6 border-t border-gray-800">
-          <p className="text-center text-gray-500 text-sm mb-4">Демо-доступ:</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" size="sm" onClick={fillTeacherCredentials}>
-              Учитель
-            </Button>
-            <Button variant="outline" size="sm" onClick={fillStudentCredentials}>
-              Ученик
-            </Button>
-          </div>
-          <p className="text-center text-gray-600 text-xs mt-4">
-            Учитель: teacher@school.edu / teacher123<br />
-            Ученик: student{'{7-10}'}_{'{1-20}'}@school.edu / student123
-          </p>
-        </div>
       </div>
     </div>
   );

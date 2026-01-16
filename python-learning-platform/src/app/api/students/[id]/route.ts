@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserById, updateUser, initializeDatabase } from '@/lib/db';
+import { getUserById, updateUser, deleteUser, initializeDatabase } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -43,5 +43,26 @@ export async function PATCH(
   } catch (error) {
     console.error('Update student error:', error);
     return NextResponse.json({ error: 'Failed to update student' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await initializeDatabase();
+    const { id } = await params;
+
+    const success = await deleteUser(id);
+
+    if (!success) {
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Delete student error:', error);
+    return NextResponse.json({ error: 'Failed to delete student' }, { status: 500 });
   }
 }

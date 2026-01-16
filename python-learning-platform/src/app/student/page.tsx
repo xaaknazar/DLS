@@ -34,7 +34,7 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen">
       <Header
-        title={`Привет, ${student.name.split(' ')[0]}!`}
+        title={`Добро пожаловать, ${student.name.split(' ').reverse().join(' ')}!`}
         subtitle="Продолжай изучать Python"
       />
 

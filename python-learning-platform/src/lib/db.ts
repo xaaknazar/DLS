@@ -1,7 +1,29 @@
 import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
+import Redis from 'ioredis';
 
-// Check if we're on Vercel with KV configured
-const isVercelKV = typeof process !== 'undefined' && process.env.KV_REST_API_URL;
+// Check for Redis connection
+const redisUrl = typeof process !== 'undefined' ? process.env.REDIS_URL : null;
+const isVercelKV = typeof process !== 'undefined' && process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+const hasRedis = !!redisUrl || isVercelKV;
+
+// Redis client for standard Redis
+let redisClient: Redis | null = null;
+
+function getRedisClient(): Redis | null {
+  if (!redisUrl) return null;
+  if (!redisClient) {
+    redisClient = new Redis(redisUrl);
+    redisClient.on('error', (err) => console.error('[Redis] Connection error:', err));
+    redisClient.on('connect', () => console.log('[Redis] Connected successfully'));
+  }
+  return redisClient;
+}
+
+// Log storage mode on startup
+if (typeof process !== 'undefined') {
+  const mode = redisUrl ? 'Redis' : (isVercelKV ? 'Vercel KV' : 'In-Memory');
+  console.log(`[DB] Storage mode: ${mode}`);
+}
 
 // In-memory storage for local development and fallback
 let memoryStore: {
@@ -19,6 +41,29 @@ let memoryStore: {
 };
 
 let initialized = false;
+
+// Redis helpers for standard Redis
+async function redisGet<T>(key: string): Promise<T | null> {
+  const client = getRedisClient();
+  if (!client) return null;
+  try {
+    const data = await client.get(`dls:${key}`);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error('[Redis] Get error:', e);
+    return null;
+  }
+}
+
+async function redisSet<T>(key: string, value: T): Promise<void> {
+  const client = getRedisClient();
+  if (!client) return;
+  try {
+    await client.set(`dls:${key}`, JSON.stringify(value));
+  } catch (e) {
+    console.error('[Redis] Set error:', e);
+  }
+}
 
 // KV helpers (only used when Vercel KV is configured)
 async function kvGet<T>(key: string): Promise<T | null> {
@@ -41,19 +86,33 @@ async function kvSet<T>(key: string, value: T): Promise<void> {
   }
 }
 
-// Storage abstraction
+// Storage abstraction - supports Redis, Vercel KV, or In-Memory
 async function getData<T>(key: string, defaultValue: T): Promise<T> {
+  // Try standard Redis first
+  if (redisUrl) {
+    const data = await redisGet<T>(key);
+    return data ?? defaultValue;
+  }
+  // Then try Vercel KV
   if (isVercelKV) {
     const data = await kvGet<T>(key);
     return data ?? defaultValue;
   }
+  // Fallback to memory
   return (memoryStore as any)[key] ?? defaultValue;
 }
 
 async function setData<T>(key: string, data: T): Promise<void> {
+  // Try standard Redis first
+  if (redisUrl) {
+    await redisSet(key, data);
+    return;
+  }
+  // Then try Vercel KV
   if (isVercelKV) {
     await kvSet(key, data);
   }
+  // Always update memory store as cache
   (memoryStore as any)[key] = data;
 }
 
@@ -318,7 +377,7 @@ export async function markMessagesAsRead(userId: string, fromUserId: string): Pr
 
 // ==================== INITIALIZATION ====================
 export async function initializeDatabase(): Promise<void> {
-  if (initialized && !isVercelKV) {
+  if (initialized && !hasRedis) {
     return; // Skip if already initialized (for in-memory mode)
   }
 
@@ -330,35 +389,103 @@ export async function initializeDatabase(): Promise<void> {
       id: 'teacher-1',
       name: 'Aknazar Arturovich',
       email: 'teacher@school.edu',
-      password: 'teacher123',
+      password: 'Khalif1949',
       role: 'teacher',
       classes: [7, 8, 9, 10],
       createdAt: new Date(),
     };
 
-    // Create 80 students (20 per grade)
-    const students: Student[] = [];
-    for (const grade of [7, 8, 9, 10]) {
-      for (let i = 1; i <= 20; i++) {
-        students.push({
-          id: `student-${grade}-${i}`,
-          name: `Ученик ${grade}-${i}`,
-          email: `student${grade}_${i}@school.edu`,
-          password: 'student123',
-          role: 'student',
-          grade,
-          completedProblems: [],
-          points: 0,
-          achievements: [],
-          streakDays: 0,
-          lastActiveAt: new Date(),
-          createdAt: new Date('2024-09-01'),
-          purchasedItems: [],
-          equippedAvatar: null,
-          equippedFrame: null,
-        });
-      }
-    }
+    // Real students data
+    const studentsData = [
+      // 7 класс (12 students)
+      { name: 'Абдильбар Илшат', email: 'ilshat.abdilbar@dls.edu', password: 'ytrhfg', grade: 7 },
+      { name: 'Байрамов Али', email: 'ali.bayramov@dls.edu', password: 'qazwsx', grade: 7 },
+      { name: 'Бақытжан Абдуррахим', email: 'abdurrahim.bakytzhan@dls.edu', password: 'plmokn', grade: 7 },
+      { name: 'Балтас Нұржарық', email: 'nurzharyk.baltas@dls.edu', password: 'xswder', grade: 7 },
+      { name: 'Думан Абдурахим', email: 'abdurahim.duman@dls.edu', password: 'bnmhju', grade: 7 },
+      { name: 'Жарбул Ерұлан', email: 'erulan.zharbul@dls.edu', password: 'fghjkl', grade: 7 },
+      { name: 'Қайырхан Абылай', email: 'abylai.kaiyrkhan@dls.edu', password: 'rewqaz', grade: 7 },
+      { name: 'Медетұлы Султан', email: 'sultan.medetuly@dls.edu', password: 'okmijn', grade: 7 },
+      { name: 'Нурдаулетов Арслан', email: 'arslan.nurdauletov@dls.edu', password: 'zasxdr', grade: 7 },
+      { name: 'Осман Дінмұхаммед', email: 'dinmuhammed.osman@dls.edu', password: 'mnbvcx', grade: 7 },
+      { name: 'Темірболат Нұрали', email: 'nuraly.temirbolat@dls.edu', password: 'poiulk', grade: 7 },
+      { name: 'Турлыбек Ахмад', email: 'ahmad.turlybek@dls.edu', password: 'lkjhgf', grade: 7 },
+
+      // 8 класс (20 students)
+      { name: 'Алтынбек Ділмұхаммед', email: 'dilmuhammed.altynbek@dls.edu', password: 'qwerty', grade: 8 },
+      { name: 'Балтас Нұртөре', email: 'nurtore.baltas@dls.edu', password: 'asdfgh', grade: 8 },
+      { name: 'Бегалы Жалаңтөс', email: 'zhalantos.begaly@dls.edu', password: 'zxcvbn', grade: 8 },
+      { name: 'Бимуханов Альтаир', email: 'altair.bimukhanov@dls.edu', password: 'tyuiop', grade: 8 },
+      { name: 'Жеңіс Нұрлыхан', email: 'nurlykhan.zhenis@dls.edu', password: 'ghjklo', grade: 8 },
+      { name: 'Кеней Әділхан', email: 'adilkhan.keney@dls.edu', password: 'cvbnml', grade: 8 },
+      { name: 'Комбатуров Жангир', email: 'zhangir.kombaturov@dls.edu', password: 'werasd', grade: 8 },
+      { name: 'Конгуев Алинұр', email: 'alinur.konguev@dls.edu', password: 'ijnmok', grade: 8 },
+      { name: 'Қабдолла Мухаммед', email: 'muhammad.kabdolla@dls.edu', password: 'rfvtgb', grade: 8 },
+      { name: 'Қайрат Абулхаир', email: 'abulkhair.kairat@dls.edu', password: 'edcrfv', grade: 8 },
+      { name: 'Мақсұт Ерасыл', email: 'erassyl.maksut@dls.edu', password: 'ujmnhy', grade: 8 },
+      { name: 'Муканов Мухаммад Амин', email: 'amin.muhammad.mukanov@dls.edu', password: 'iklojm', grade: 8 },
+      { name: 'Нуржанов Эльбурихан', email: 'elburikhan.nurzhanov@dls.edu', password: 'plokij', grade: 8 },
+      { name: 'Нұрғали Йусуф', email: 'yusuf.nurgaly@dls.edu', password: 'xswdqa', grade: 8 },
+      { name: 'Сағынғалиев Абдурахман', email: 'abdurahman.sagingaliev@dls.edu', password: 'vfrtgb', grade: 8 },
+      { name: 'Салават Искандер', email: 'iskander.salavat@dls.edu', password: 'hnjmik', grade: 8 },
+      { name: 'Серікұлы Дамир', email: 'damir.serikuly@dls.edu', password: 'nbvcxz', grade: 8 },
+      { name: 'Тұрсынәлі Бектас', email: 'bektas.tursynali@dls.edu', password: 'oplkij', grade: 8 },
+      { name: 'Фархатұлы Дінмұхамед', email: 'dinmuhamed.farkhatuly@dls.edu', password: 'azsxdc', grade: 8 },
+      { name: 'Юсуфали Али', email: 'ali.yusufali@dls.edu', password: 'miklop', grade: 8 },
+
+      // 9 класс (16 students)
+      { name: 'Аманжол Абдурахман', email: 'abdurahman.amanzhol@dls.edu', password: 'qazxsw', grade: 9 },
+      { name: 'Ахмеджанов Инсар', email: 'insar.akhmedzhanov@dls.edu', password: 'edcvfr', grade: 9 },
+      { name: 'Ахметали Абылай', email: 'abylai.akhmetali@dls.edu', password: 'tgbnhy', grade: 9 },
+      { name: 'Бағаев Ерсұлтан', email: 'ersultan.bagaev@dls.edu', password: 'ujikol', grade: 9 },
+      { name: 'Бақытжан Нұрнияз', email: 'nurniyaz.bakytzhan@dls.edu', password: 'plokmn', grade: 9 },
+      { name: 'Дүйсенбай Диар', email: 'diar.duisenbai@dls.edu', password: 'zasxdc', grade: 9 },
+      { name: 'Жеңіс Мағжан', email: 'magzhan.zhenis@dls.edu', password: 'rfvtgy', grade: 9 },
+      { name: 'Калелов Бекарыс', email: 'bekarys.kalelov@dls.edu', password: 'hnjmko', grade: 9 },
+      { name: 'Кульжан Диар', email: 'diar.kulzhan@dls.edu', password: 'miknuj', grade: 9 },
+      { name: 'Марат Әлмансур', email: 'almansur.marat@dls.edu', password: 'bnmhyt', grade: 9 },
+      { name: 'Мехнин Олег', email: 'oleg.mekhnin@dls.edu', password: 'lopkij', grade: 9 },
+      { name: 'Разыев Абдулла', email: 'abdulla.raziev@dls.edu', password: 'qwertu', grade: 9 },
+      { name: 'Ромазан Елжан', email: 'elzhan.romazan@dls.edu', password: 'asdfju', grade: 9 },
+      { name: 'Сәндібек Сағадат', email: 'sagadat.sandibek@dls.edu', password: 'zxcvhy', grade: 9 },
+      { name: 'Темержан Санжар', email: 'sanzhar.temerzhan@dls.edu', password: 'plmnok', grade: 9 },
+      { name: 'Турдыбеков Искандер', email: 'iskander.turdybekov@dls.edu', password: 'ijnhuy', grade: 9 },
+
+      // 10 класс (15 students)
+      { name: 'Аждурлиев Бақберген', email: 'bakbergen.azhdurliev@dls.edu', password: 'rfghyt', grade: 10 },
+      { name: 'Арғымбаев Арыс', email: 'arys.argymbaev@dls.edu', password: 'qazplm', grade: 10 },
+      { name: 'Ахаев Мансур', email: 'mansur.akhaev@dls.edu', password: 'okmijn', grade: 10 },
+      { name: 'Джанытез Серкан', email: 'serkan.dzhanytez@dls.edu', password: 'xswdqe', grade: 10 },
+      { name: 'Ербол Санжар', email: 'sanzhar.erbol@dls.edu', password: 'tgbnhy', grade: 10 },
+      { name: 'Жумамурат Толе', email: 'tole.zhumamurat@dls.edu', password: 'ikloju', grade: 10 },
+      { name: 'Жұмәсіл Мейіржан', email: 'meirzhan.zhumasil@dls.edu', password: 'plmokn', grade: 10 },
+      { name: 'Кадырхан Мансур', email: 'mansur.kadyrkhan@dls.edu', password: 'zasxdr', grade: 10 },
+      { name: 'Қудайберген Ерасыл', email: 'erassyl.kudaibergen@dls.edu', password: 'fghjkl', grade: 10 },
+      { name: 'Мекебай Архат', email: 'arkhat.mekebai@dls.edu', password: 'bnmhju', grade: 10 },
+      { name: 'Мустафин Ихсан', email: 'ihsan.mustafin@dls.edu', password: 'rewqaz', grade: 10 },
+      { name: 'Өмірзақ Бекасыл', email: 'bekasyl.omirzak@dls.edu', password: 'cvbnml', grade: 10 },
+      { name: 'Рысдавлетов Эмирлан', email: 'emirlan.rysdavletov@dls.edu', password: 'tyuiop', grade: 10 },
+      { name: 'Сәки Наркес', email: 'narkes.saki@dls.edu', password: 'lkjhgf', grade: 10 },
+      { name: 'Ыгзан Самалық', email: 'samalyk.ygzan@dls.edu', password: 'mnbvcx', grade: 10 },
+    ];
+
+    const students: Student[] = studentsData.map((s, i) => ({
+      id: `student-${s.grade}-${i + 1}`,
+      name: s.name,
+      email: s.email,
+      password: s.password,
+      role: 'student' as const,
+      grade: s.grade,
+      completedProblems: [],
+      points: 0,
+      achievements: [],
+      streakDays: 0,
+      lastActiveAt: new Date(),
+      createdAt: new Date('2024-09-01'),
+      purchasedItems: [],
+      equippedAvatar: null,
+      equippedFrame: null,
+    }));
 
     await setData('users', [teacher, ...students]);
   }
@@ -378,6 +505,16 @@ export async function initializeDatabase(): Promise<void> {
   initialized = true;
 }
 
+// Function to delete a user
+export async function deleteUser(id: string): Promise<boolean> {
+  const users = await getUsers();
+  const index = users.findIndex(u => u.id === id);
+  if (index === -1) return false;
+  users.splice(index, 1);
+  await setData('users', users);
+  return true;
+}
+
 function getDefaultTopics(): Topic[] {
   return [
     {
@@ -391,7 +528,98 @@ function getDefaultTopics(): Topic[] {
       color: 'blue',
       grades: [7, 8, 9, 10],
       problemIds: ['var-1', 'var-2', 'var-3'],
-      documentation: `# Переменные в Python\n\n## Что такое переменная?\n\nПеременная — это именованная область памяти, которая хранит данные.\n\n\`\`\`python\nname = "Иван"\nage = 15\n\`\`\`\n`
+      documentation: `# Переменные в Python
+
+## Что такое переменная?
+
+Представь, что переменная — это **коробка с названием**, в которую ты можешь положить что угодно: число, текст или другие данные. Когда тебе понадобится это значение, ты просто обращаешься к коробке по имени.
+
+> **Простыми словами:** Переменная = имя + значение
+
+## Как создать переменную?
+
+Чтобы создать переменную, просто напиши её имя, поставь знак \`=\` и укажи значение:
+
+\`\`\`python
+message = "Привет, мир!"
+age = 15
+height = 1.75
+is_student = True
+\`\`\`
+
+## Типы данных
+
+В Python есть несколько основных типов данных:
+
+| Тип | Описание | Пример |
+|-----|----------|--------|
+| \`str\` | Строка (текст) | \`"Привет"\` |
+| \`int\` | Целое число | \`42\` |
+| \`float\` | Дробное число | \`3.14\` |
+| \`bool\` | Логический тип | \`True\` или \`False\` |
+
+### Примеры
+
+\`\`\`python
+# Строка (текст в кавычках)
+name = "Алия"
+
+# Целое число
+score = 100
+
+# Дробное число
+temperature = 36.6
+
+# Логическое значение
+is_online = True
+\`\`\`
+
+## Правила именования переменных
+
+- Имя может содержать буквы, цифры и символ \`_\`
+- Имя **не может** начинаться с цифры
+- Имя **не может** содержать пробелы
+- Python различает большие и маленькие буквы (\`Name\` и \`name\` — разные переменные)
+
+\`\`\`python
+# Правильно ✓
+user_name = "Иван"
+age2 = 16
+myScore = 95
+
+# Неправильно ✗
+# 2age = 16       # начинается с цифры
+# user name = "Иван"  # содержит пробел
+\`\`\`
+
+## Изменение значения переменной
+
+Ты можешь изменить значение переменной в любой момент:
+
+\`\`\`python
+points = 10
+print(points)  # Выведет: 10
+
+points = 25
+print(points)  # Выведет: 25
+
+points = points + 5
+print(points)  # Выведет: 30
+\`\`\`
+
+## Важно запомнить
+
+- Используй понятные имена: \`age\` лучше чем \`a\`
+- Для текста используй кавычки: \`"текст"\` или \`'текст'\`
+- Числа пишутся без кавычек: \`42\`, а не \`"42"\`
+
+> **Совет:** Называй переменные так, чтобы было понятно, что в них хранится!
+
+## Полезные видео
+
+- [Python для начинающих - Переменные](https://www.youtube.com/watch?v=pPkw7IQ8lww)
+- [Типы данных в Python](https://www.youtube.com/watch?v=DplfLAGY6-o)
+`
     },
     {
       id: 'input-output',
@@ -404,7 +632,121 @@ function getDefaultTopics(): Topic[] {
       color: 'green',
       grades: [7, 8, 9, 10],
       problemIds: ['io-1', 'io-2'],
-      documentation: `# Ввод и вывод в Python\n\n\`\`\`python\nprint("Привет!")\nname = input("Имя: ")\n\`\`\`\n`
+      documentation: `# Ввод и вывод данных в Python
+
+## Функция print() — вывод данных
+
+Функция \`print()\` выводит информацию на экран. Это как "сказать" компьютеру, чтобы он что-то показал.
+
+\`\`\`python
+print("Привет, мир!")
+print(42)
+print(3.14)
+\`\`\`
+
+**Результат:**
+\`\`\`
+Привет, мир!
+42
+3.14
+\`\`\`
+
+### Вывод нескольких значений
+
+Можно вывести несколько значений через запятую:
+
+\`\`\`python
+name = "Алия"
+age = 15
+
+print("Имя:", name)
+print("Возраст:", age)
+print(name, "-", age, "лет")
+\`\`\`
+
+**Результат:**
+\`\`\`
+Имя: Алия
+Возраст: 15
+Алия - 15 лет
+\`\`\`
+
+## Функция input() — ввод данных
+
+Функция \`input()\` позволяет пользователю ввести данные с клавиатуры.
+
+\`\`\`python
+name = input("Как тебя зовут? ")
+print("Привет,", name)
+\`\`\`
+
+> **Важно:** \`input()\` всегда возвращает **строку** (текст), даже если ты ввёл число!
+
+### Ввод чисел
+
+Чтобы получить число, нужно преобразовать строку:
+
+\`\`\`python
+# Для целых чисел используй int()
+age = int(input("Сколько тебе лет? "))
+
+# Для дробных чисел используй float()
+height = float(input("Какой у тебя рост? "))
+\`\`\`
+
+### Пример программы
+
+\`\`\`python
+# Программа-калькулятор
+a = int(input("Введите первое число: "))
+b = int(input("Введите второе число: "))
+
+summa = a + b
+print("Сумма:", summa)
+\`\`\`
+
+## f-строки — удобный вывод
+
+f-строки позволяют вставлять переменные прямо в текст:
+
+\`\`\`python
+name = "Дамир"
+age = 14
+
+# Обычный способ
+print("Привет, " + name + "! Тебе " + str(age) + " лет.")
+
+# С помощью f-строки (удобнее!)
+print(f"Привет, {name}! Тебе {age} лет.")
+\`\`\`
+
+> **Совет:** Перед кавычками ставь букву \`f\`, а переменные пиши в фигурных скобках \`{}\`
+
+## Частые ошибки
+
+\`\`\`python
+# Ошибка: складываем строку и число
+age = input("Возраст: ")
+new_age = age + 1  # Ошибка! age - это строка
+
+# Правильно:
+age = int(input("Возраст: "))
+new_age = age + 1  # Теперь работает!
+\`\`\`
+
+## Важно запомнить
+
+- \`print()\` — выводит данные на экран
+- \`input()\` — получает данные от пользователя (всегда строка!)
+- \`int()\` — преобразует в целое число
+- \`float()\` — преобразует в дробное число
+- f-строки: \`f"Текст {переменная}"\`
+
+## Полезные видео
+
+- [Print и Input в Python](https://www.youtube.com/watch?v=BuglYKnd2X4)
+- [f-строки в Python](https://www.youtube.com/watch?v=fLpK_JhTt7M)
+`
     },
     {
       id: 'conditions',
@@ -417,7 +759,147 @@ function getDefaultTopics(): Topic[] {
       color: 'yellow',
       grades: [7, 8, 9, 10],
       problemIds: ['cond-1', 'cond-2'],
-      documentation: `# Условные операторы\n\n\`\`\`python\nif age >= 18:\n    print("Взрослый")\nelse:\n    print("Ребёнок")\n\`\`\`\n`
+      documentation: `# Условные операторы в Python
+
+## Что такое условие?
+
+Условие — это проверка. Компьютер смотрит, выполняется ли условие, и в зависимости от этого делает разные вещи.
+
+> **Пример из жизни:** Если на улице дождь — возьми зонт, иначе — не бери.
+
+## Оператор if (если)
+
+\`\`\`python
+age = 16
+
+if age >= 18:
+    print("Ты совершеннолетний")
+\`\`\`
+
+> **Важно:** После \`if\` обязательно ставь двоеточие \`:\` и делай отступ (4 пробела или Tab)
+
+## Оператор if-else (если-иначе)
+
+\`\`\`python
+age = 16
+
+if age >= 18:
+    print("Ты совершеннолетний")
+else:
+    print("Ты несовершеннолетний")
+\`\`\`
+
+**Результат:** \`Ты несовершеннолетний\`
+
+## Оператор if-elif-else (несколько условий)
+
+\`elif\` — это сокращение от "else if" (иначе если)
+
+\`\`\`python
+score = 75
+
+if score >= 90:
+    print("Отлично! Оценка 5")
+elif score >= 70:
+    print("Хорошо! Оценка 4")
+elif score >= 50:
+    print("Удовлетворительно. Оценка 3")
+else:
+    print("Нужно подтянуть знания. Оценка 2")
+\`\`\`
+
+**Результат:** \`Хорошо! Оценка 4\`
+
+## Операторы сравнения
+
+| Оператор | Значение | Пример |
+|----------|----------|--------|
+| \`==\` | Равно | \`a == b\` |
+| \`!=\` | Не равно | \`a != b\` |
+| \`>\` | Больше | \`a > b\` |
+| \`<\` | Меньше | \`a < b\` |
+| \`>=\` | Больше или равно | \`a >= b\` |
+| \`<=\` | Меньше или равно | \`a <= b\` |
+
+### Примеры
+
+\`\`\`python
+a = 10
+b = 5
+
+print(a == b)   # False (10 не равно 5)
+print(a != b)   # True (10 не равно 5)
+print(a > b)    # True (10 больше 5)
+print(a < b)    # False (10 не меньше 5)
+\`\`\`
+
+## Логические операторы
+
+| Оператор | Значение | Пример |
+|----------|----------|--------|
+| \`and\` | И (оба условия должны быть True) | \`a > 0 and b > 0\` |
+| \`or\` | ИЛИ (хотя бы одно условие True) | \`a > 0 or b > 0\` |
+| \`not\` | НЕ (инвертирует условие) | \`not a > 0\` |
+
+### Примеры
+
+\`\`\`python
+age = 16
+has_ticket = True
+
+# Оба условия должны выполняться
+if age >= 12 and has_ticket:
+    print("Можешь пройти на фильм")
+
+# Хотя бы одно условие
+if age < 7 or age > 65:
+    print("Бесплатный проезд")
+\`\`\`
+
+## Проверка чётности числа
+
+\`\`\`python
+number = int(input("Введите число: "))
+
+if number % 2 == 0:
+    print("Число чётное")
+else:
+    print("Число нечётное")
+\`\`\`
+
+> **Подсказка:** Оператор \`%\` даёт остаток от деления. Если \`число % 2 == 0\`, значит число делится на 2 без остатка — оно чётное.
+
+## Частые ошибки
+
+\`\`\`python
+# Ошибка: = вместо ==
+if age = 18:    # Неправильно!
+    print("...")
+
+if age == 18:   # Правильно!
+    print("...")
+
+# Ошибка: забыли двоеточие
+if age > 18     # Неправильно!
+    print("...")
+
+if age > 18:    # Правильно!
+    print("...")
+\`\`\`
+
+## Важно запомнить
+
+- \`if\` — если условие верно
+- \`else\` — иначе (если условие не верно)
+- \`elif\` — иначе если (проверить другое условие)
+- После условия ставь двоеточие \`:\`
+- Код внутри условия должен быть с отступом
+
+## Полезные видео
+
+- [Условные операторы if-else](https://www.youtube.com/watch?v=b6cRVyhVyrI)
+- [Логические операторы в Python](https://www.youtube.com/watch?v=XeJOFsLvh_o)
+`
     },
     {
       id: 'loops',
@@ -430,7 +912,172 @@ function getDefaultTopics(): Topic[] {
       color: 'purple',
       grades: [7, 8, 9, 10],
       problemIds: ['loop-1', 'loop-2'],
-      documentation: `# Циклы в Python\n\n\`\`\`python\nfor i in range(5):\n    print(i)\n\`\`\`\n`
+      documentation: `# Циклы в Python
+
+## Что такое цикл?
+
+Цикл — это способ **повторить** действие несколько раз. Вместо того чтобы писать один и тот же код много раз, мы используем цикл.
+
+> **Пример из жизни:** "Повтори упражнение 10 раз" — это цикл!
+
+## Цикл for — когда знаешь сколько раз
+
+Цикл \`for\` используется, когда ты знаешь, сколько раз нужно повторить действие.
+
+\`\`\`python
+# Повторить 5 раз
+for i in range(5):
+    print("Привет!")
+\`\`\`
+
+**Результат:**
+\`\`\`
+Привет!
+Привет!
+Привет!
+Привет!
+Привет!
+\`\`\`
+
+### Функция range()
+
+\`range()\` создаёт последовательность чисел:
+
+\`\`\`python
+# range(5) = 0, 1, 2, 3, 4
+for i in range(5):
+    print(i)
+\`\`\`
+
+**Результат:** \`0 1 2 3 4\` (каждое число на новой строке)
+
+\`\`\`python
+# range(1, 6) = 1, 2, 3, 4, 5
+for i in range(1, 6):
+    print(i)
+\`\`\`
+
+**Результат:** \`1 2 3 4 5\`
+
+\`\`\`python
+# range(0, 10, 2) = 0, 2, 4, 6, 8 (шаг 2)
+for i in range(0, 10, 2):
+    print(i)
+\`\`\`
+
+**Результат:** \`0 2 4 6 8\`
+
+## Перебор элементов
+
+С помощью \`for\` можно перебирать элементы списка или строки:
+
+\`\`\`python
+# Перебор строки
+name = "Python"
+for letter in name:
+    print(letter)
+\`\`\`
+
+\`\`\`python
+# Перебор списка
+fruits = ["яблоко", "банан", "апельсин"]
+for fruit in fruits:
+    print(f"Я люблю {fruit}")
+\`\`\`
+
+## Цикл while — пока условие верно
+
+Цикл \`while\` повторяется, пока условие истинно (True).
+
+\`\`\`python
+count = 1
+
+while count <= 5:
+    print(count)
+    count = count + 1
+\`\`\`
+
+**Результат:** \`1 2 3 4 5\`
+
+> **Важно:** Не забудь изменять условие внутри цикла, иначе цикл будет бесконечным!
+
+### Пример: угадай число
+
+\`\`\`python
+secret = 7
+guess = 0
+
+while guess != secret:
+    guess = int(input("Угадай число от 1 до 10: "))
+
+    if guess < secret:
+        print("Больше!")
+    elif guess > secret:
+        print("Меньше!")
+
+print("Молодец! Ты угадал!")
+\`\`\`
+
+## Операторы break и continue
+
+### break — выйти из цикла
+
+\`\`\`python
+for i in range(10):
+    if i == 5:
+        break  # Выходим из цикла
+    print(i)
+\`\`\`
+
+**Результат:** \`0 1 2 3 4\`
+
+### continue — пропустить итерацию
+
+\`\`\`python
+for i in range(5):
+    if i == 2:
+        continue  # Пропускаем 2
+    print(i)
+\`\`\`
+
+**Результат:** \`0 1 3 4\`
+
+## Сумма чисел от 1 до N
+
+\`\`\`python
+n = int(input("Введите N: "))
+summa = 0
+
+for i in range(1, n + 1):
+    summa = summa + i
+
+print(f"Сумма чисел от 1 до {n} = {summa}")
+\`\`\`
+
+## Таблица умножения
+
+\`\`\`python
+num = 7
+
+for i in range(1, 11):
+    print(f"{num} x {i} = {num * i}")
+\`\`\`
+
+## Важно запомнить
+
+- \`for\` — когда знаешь количество повторений
+- \`while\` — когда не знаешь, сколько раз повторять
+- \`range(n)\` — числа от 0 до n-1
+- \`range(a, b)\` — числа от a до b-1
+- \`break\` — выход из цикла
+- \`continue\` — пропустить итерацию
+
+## Полезные видео
+
+- [Цикл for в Python](https://www.youtube.com/watch?v=ptn_LB5vLJI)
+- [Цикл while в Python](https://www.youtube.com/watch?v=qTY29mKYm_E)
+- [break и continue](https://www.youtube.com/watch?v=XAnOfp0Vp1k)
+`
     },
     {
       id: 'lists',
@@ -443,7 +1090,185 @@ function getDefaultTopics(): Topic[] {
       color: 'orange',
       grades: [8, 9, 10],
       problemIds: ['list-1', 'list-2'],
-      documentation: `# Списки в Python\n\n\`\`\`python\nnums = [1, 2, 3]\nnums.append(4)\n\`\`\`\n`
+      documentation: `# Списки в Python
+
+## Что такое список?
+
+Список — это **набор элементов** в одной переменной. Представь, что это коробка, в которой лежит несколько вещей.
+
+> **Пример из жизни:** Список покупок, список учеников в классе, список оценок.
+
+## Создание списка
+
+\`\`\`python
+# Пустой список
+my_list = []
+
+# Список чисел
+numbers = [1, 2, 3, 4, 5]
+
+# Список строк
+fruits = ["яблоко", "банан", "апельсин"]
+
+# Смешанный список
+mixed = [1, "привет", 3.14, True]
+\`\`\`
+
+## Доступ к элементам
+
+Элементы списка нумеруются с **0** (не с 1!):
+
+\`\`\`python
+fruits = ["яблоко", "банан", "апельсин"]
+
+print(fruits[0])  # яблоко (первый элемент)
+print(fruits[1])  # банан (второй элемент)
+print(fruits[2])  # апельсин (третий элемент)
+print(fruits[-1]) # апельсин (последний элемент)
+\`\`\`
+
+> **Запомни:** Индексация начинается с 0!
+
+## Изменение элементов
+
+\`\`\`python
+fruits = ["яблоко", "банан", "апельсин"]
+
+fruits[1] = "груша"
+print(fruits)  # ["яблоко", "груша", "апельсин"]
+\`\`\`
+
+## Основные методы списков
+
+### Добавление элементов
+
+\`\`\`python
+fruits = ["яблоко", "банан"]
+
+# append() — добавить в конец
+fruits.append("апельсин")
+print(fruits)  # ["яблоко", "банан", "апельсин"]
+
+# insert() — вставить по индексу
+fruits.insert(1, "груша")
+print(fruits)  # ["яблоко", "груша", "банан", "апельсин"]
+\`\`\`
+
+### Удаление элементов
+
+\`\`\`python
+fruits = ["яблоко", "банан", "апельсин"]
+
+# remove() — удалить по значению
+fruits.remove("банан")
+print(fruits)  # ["яблоко", "апельсин"]
+
+# pop() — удалить по индексу
+fruits.pop(0)
+print(fruits)  # ["апельсин"]
+\`\`\`
+
+### Другие полезные методы
+
+\`\`\`python
+numbers = [3, 1, 4, 1, 5, 9, 2, 6]
+
+# Длина списка
+print(len(numbers))  # 8
+
+# Сортировка
+numbers.sort()
+print(numbers)  # [1, 1, 2, 3, 4, 5, 6, 9]
+
+# Переворот
+numbers.reverse()
+print(numbers)  # [9, 6, 5, 4, 3, 2, 1, 1]
+
+# Подсчёт элемента
+print(numbers.count(1))  # 2 (единица встречается 2 раза)
+\`\`\`
+
+## Перебор списка
+
+\`\`\`python
+fruits = ["яблоко", "банан", "апельсин"]
+
+# Перебор элементов
+for fruit in fruits:
+    print(fruit)
+
+# Перебор с индексом
+for i in range(len(fruits)):
+    print(f"{i}: {fruits[i]}")
+\`\`\`
+
+## Встроенные функции
+
+\`\`\`python
+numbers = [3, 1, 4, 1, 5, 9]
+
+print(sum(numbers))   # 23 (сумма)
+print(min(numbers))   # 1 (минимум)
+print(max(numbers))   # 9 (максимум)
+print(len(numbers))   # 6 (длина)
+\`\`\`
+
+## Срезы (slices)
+
+Срезы позволяют получить часть списка:
+
+\`\`\`python
+numbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+print(numbers[2:5])   # [2, 3, 4] (с 2 по 4 индекс)
+print(numbers[:3])    # [0, 1, 2] (первые 3 элемента)
+print(numbers[7:])    # [7, 8, 9] (с 7 индекса до конца)
+print(numbers[::2])   # [0, 2, 4, 6, 8] (каждый второй)
+\`\`\`
+
+## Ввод списка с клавиатуры
+
+\`\`\`python
+# Ввод чисел через пробел: 1 2 3 4 5
+line = input("Введите числа через пробел: ")
+numbers = line.split()  # ['1', '2', '3', '4', '5']
+numbers = list(map(int, numbers))  # [1, 2, 3, 4, 5]
+
+# Или короче:
+numbers = list(map(int, input().split()))
+\`\`\`
+
+## Пример: найти максимум
+
+\`\`\`python
+numbers = [3, 1, 4, 1, 5, 9, 2, 6]
+
+# Способ 1: встроенная функция
+print(max(numbers))  # 9
+
+# Способ 2: цикл
+maximum = numbers[0]
+for num in numbers:
+    if num > maximum:
+        maximum = num
+print(maximum)  # 9
+\`\`\`
+
+## Важно запомнить
+
+- Индексы начинаются с 0
+- \`append()\` — добавить в конец
+- \`remove()\` — удалить по значению
+- \`pop()\` — удалить по индексу
+- \`len()\` — длина списка
+- \`sum()\`, \`min()\`, \`max()\` — сумма, минимум, максимум
+
+## Полезные видео
+
+- [Списки в Python](https://www.youtube.com/watch?v=dYKDL8_ULNY)
+- [Методы списков](https://www.youtube.com/watch?v=J2RFvMM-isQ)
+- [Срезы списков](https://www.youtube.com/watch?v=ajrtAuDg3yw)
+`
     },
     {
       id: 'functions',
@@ -456,7 +1281,211 @@ function getDefaultTopics(): Topic[] {
       color: 'pink',
       grades: [8, 9, 10],
       problemIds: ['func-1', 'func-2'],
-      documentation: `# Функции в Python\n\n\`\`\`python\ndef greet(name):\n    return f"Привет, {name}!"\n\`\`\`\n`
+      documentation: `# Функции в Python
+
+## Что такое функция?
+
+Функция — это **блок кода с именем**, который можно вызывать много раз. Вместо того чтобы копировать один и тот же код, ты создаёшь функцию и вызываешь её когда нужно.
+
+> **Пример из жизни:** Рецепт — это функция. Ты пишешь его один раз, а готовить по нему можешь много раз!
+
+## Зачем нужны функции?
+
+- **Меньше повторений** — не нужно копировать код
+- **Проще читать** — код становится понятнее
+- **Легче исправлять** — меняешь в одном месте
+
+## Создание функции
+
+Чтобы создать функцию, используй ключевое слово \`def\`:
+
+\`\`\`python
+def greet():
+    print("Привет!")
+    print("Как дела?")
+
+# Вызываем функцию
+greet()
+greet()
+\`\`\`
+
+**Результат:**
+\`\`\`
+Привет!
+Как дела?
+Привет!
+Как дела?
+\`\`\`
+
+## Функции с параметрами
+
+Параметры — это данные, которые функция получает при вызове:
+
+\`\`\`python
+def greet(name):
+    print(f"Привет, {name}!")
+
+greet("Алия")    # Привет, Алия!
+greet("Дамир")   # Привет, Дамир!
+\`\`\`
+
+### Несколько параметров
+
+\`\`\`python
+def introduce(name, age):
+    print(f"Меня зовут {name}, мне {age} лет")
+
+introduce("Алия", 15)
+introduce("Дамир", 16)
+\`\`\`
+
+## Возврат значения (return)
+
+Функция может **вернуть** результат с помощью \`return\`:
+
+\`\`\`python
+def add(a, b):
+    result = a + b
+    return result
+
+# Сохраняем результат в переменную
+summa = add(5, 3)
+print(summa)  # 8
+
+# Или сразу выводим
+print(add(10, 20))  # 30
+\`\`\`
+
+### Примеры полезных функций
+
+\`\`\`python
+# Функция для вычисления квадрата числа
+def square(n):
+    return n * n
+
+print(square(5))   # 25
+print(square(12))  # 144
+
+
+# Функция для проверки чётности
+def is_even(n):
+    return n % 2 == 0
+
+print(is_even(4))   # True
+print(is_even(7))   # False
+
+
+# Функция для нахождения максимума
+def maximum(a, b):
+    if a > b:
+        return a
+    else:
+        return b
+
+print(maximum(10, 5))  # 10
+\`\`\`
+
+## Параметры по умолчанию
+
+Можно задать значение параметра по умолчанию:
+
+\`\`\`python
+def greet(name, greeting="Привет"):
+    print(f"{greeting}, {name}!")
+
+greet("Алия")                    # Привет, Алия!
+greet("Дамир", "Здравствуй")     # Здравствуй, Дамир!
+\`\`\`
+
+## Функция может вызывать другую функцию
+
+\`\`\`python
+def square(n):
+    return n * n
+
+def sum_of_squares(a, b):
+    return square(a) + square(b)
+
+print(sum_of_squares(3, 4))  # 9 + 16 = 25
+\`\`\`
+
+## Практические примеры
+
+### Функция для проверки палиндрома
+
+\`\`\`python
+def is_palindrome(text):
+    # Убираем пробелы и приводим к нижнему регистру
+    text = text.lower().replace(" ", "")
+    # Сравниваем с перевёрнутой строкой
+    return text == text[::-1]
+
+print(is_palindrome("шалаш"))     # True
+print(is_palindrome("Python"))    # False
+print(is_palindrome("А роза упала на лапу Азора"))  # True
+\`\`\`
+
+### Функция для вычисления факториала
+
+\`\`\`python
+def factorial(n):
+    result = 1
+    for i in range(1, n + 1):
+        result = result * i
+    return result
+
+print(factorial(5))   # 120 (1*2*3*4*5)
+print(factorial(4))   # 24 (1*2*3*4)
+\`\`\`
+
+## Локальные и глобальные переменные
+
+\`\`\`python
+x = 10  # Глобальная переменная
+
+def my_function():
+    y = 5  # Локальная переменная (только внутри функции)
+    print(x)  # Можем читать глобальную
+    print(y)
+
+my_function()
+print(x)  # 10 (работает)
+# print(y)  # Ошибка! y существует только внутри функции
+\`\`\`
+
+## Частые ошибки
+
+\`\`\`python
+# Ошибка: забыли скобки при вызове
+def greet():
+    print("Привет!")
+
+greet    # Неправильно!
+greet()  # Правильно!
+
+# Ошибка: забыли return
+def add(a, b):
+    result = a + b
+    # Нет return — функция вернёт None
+
+x = add(5, 3)
+print(x)  # None
+\`\`\`
+
+## Важно запомнить
+
+- \`def\` — создание функции
+- \`return\` — возврат значения
+- Параметры — данные, которые функция получает
+- Функцию нужно сначала создать, потом вызывать
+- Локальные переменные существуют только внутри функции
+
+## Полезные видео
+
+- [Функции в Python для начинающих](https://www.youtube.com/watch?v=3jTtFu8elpY)
+- [Параметры и return](https://www.youtube.com/watch?v=EfGVm18QFRE)
+- [Области видимости переменных](https://www.youtube.com/watch?v=sAtXyTmWHvw)
+`
     },
   ];
 }

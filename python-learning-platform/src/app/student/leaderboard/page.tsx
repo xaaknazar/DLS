@@ -5,7 +5,7 @@ import { Student } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getShopItemById } from '@/data/shop';
 import {
   Trophy,
@@ -14,16 +14,42 @@ import {
   Flame,
   Code,
   Crown,
+  Loader2,
 } from 'lucide-react';
 
 export default function LeaderboardPage() {
-  const { user, students } = useStore();
+  const { user, students, loadStudents } = useStore();
   const currentStudent = user as Student;
   const [selectedGrade, setSelectedGrade] = useState<number | 'all'>(
     currentStudent?.grade || 7
   );
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      setIsLoading(true);
+      try {
+        await loadStudents();
+      } catch (e) {
+        console.error('Failed to load students:', e);
+      }
+      setIsLoading(false);
+    };
+    fetchStudents();
+  }, [loadStudents]);
 
   if (!currentStudent) return null;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen">
+        <Header title="Рейтинг" subtitle="Соревнуйся с одноклассниками" />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   const filteredStudents =
     selectedGrade === 'all'
