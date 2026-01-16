@@ -15,10 +15,12 @@ import {
   Crown,
   Gem,
   Zap,
+  Gift,
+  Flame,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-type Category = 'all' | 'avatar' | 'frame';
+type Category = 'all' | 'avatar' | 'frame' | 'reward';
 
 export default function ShopPage() {
   const { user } = useStore();
@@ -35,7 +37,7 @@ export default function ShopPage() {
 
   const sortedItems = [...filteredItems].sort((a, b) => {
     // Sort by rarity then price
-    const rarityOrder = { common: 0, rare: 1, epic: 2, legendary: 3 };
+    const rarityOrder = { common: 0, rare: 1, epic: 2, legendary: 3, mythic: 4 };
     if (rarityOrder[a.rarity] !== rarityOrder[b.rarity]) {
       return rarityOrder[a.rarity] - rarityOrder[b.rarity];
     }
@@ -72,7 +74,11 @@ export default function ShopPage() {
       useStore.setState({ user: updatedStudent });
       sessionStorage.setItem('user', JSON.stringify(updatedStudent));
 
-      toast.success(`${item.nameRu} куплен!`);
+      if (item.category === 'reward') {
+        toast.success(`🎉 ${item.nameRu} получен! Покажи учителю для активации.`);
+      } else {
+        toast.success(`${item.nameRu} куплен!`);
+      }
     } catch (error) {
       toast.error('Ошибка покупки');
     } finally {
@@ -116,6 +122,7 @@ export default function ShopPage() {
       case 'rare': return <Gem className="w-4 h-4" />;
       case 'epic': return <Sparkles className="w-4 h-4" />;
       case 'legendary': return <Crown className="w-4 h-4" />;
+      case 'mythic': return <Flame className="w-4 h-4" />;
     }
   };
 
@@ -125,6 +132,7 @@ export default function ShopPage() {
       case 'rare': return 'Редкий';
       case 'epic': return 'Эпический';
       case 'legendary': return 'Легендарный';
+      case 'mythic': return 'Мифический';
     }
   };
 
@@ -134,7 +142,7 @@ export default function ShopPage() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Магазин" subtitle="Обменяй баллы на крутые аватары" />
+      <Header title="Магазин" subtitle="Обменяй баллы на крутые аватары и награды" />
 
       <div className="p-8">
         {/* Balance & Preview */}
@@ -178,27 +186,46 @@ export default function ShopPage() {
         </div>
 
         {/* Category Filter */}
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-6">
           <ShoppingBag className="w-5 h-5 text-gray-400" />
           <span className="text-gray-400 mr-2">Категория:</span>
           {[
-            { key: 'all', label: 'Все' },
-            { key: 'avatar', label: 'Аватары' },
-            { key: 'frame', label: 'Рамки' },
-          ].map(({ key, label }) => (
+            { key: 'all', label: 'Все', icon: null },
+            { key: 'avatar', label: 'Аватары', icon: '🎭' },
+            { key: 'frame', label: 'Рамки', icon: '🖼️' },
+            { key: 'reward', label: 'Награды', icon: '🎁' },
+          ].map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setSelectedCategory(key as Category)}
-              className={`px-4 py-2 rounded-xl font-medium transition-all ${
+              className={`px-4 py-2 rounded-xl font-medium transition-all flex items-center gap-2 ${
                 selectedCategory === key
-                  ? 'bg-blue-500 text-white'
+                  ? key === 'reward'
+                    ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'
+                    : 'bg-blue-500 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
+              {icon && <span>{icon}</span>}
               {label}
             </button>
           ))}
         </div>
+
+        {/* Rewards Info Banner */}
+        {selectedCategory === 'reward' && (
+          <Card className="p-4 mb-6 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border-yellow-500/30">
+            <div className="flex items-center gap-3">
+              <Gift className="w-6 h-6 text-yellow-400" />
+              <div>
+                <p className="text-white font-medium">Как использовать награды?</p>
+                <p className="text-gray-400 text-sm">
+                  После покупки награды покажи её учителю. Он активирует награду для тебя!
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Items Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -206,13 +233,14 @@ export default function ShopPage() {
             const owned = isOwned(item.id);
             const equipped = isEquipped(item);
             const canAfford = student.points >= item.price;
+            const isReward = item.category === 'reward';
 
             return (
               <Card
                 key={item.id}
                 className={`p-4 border transition-all hover:scale-105 ${getRarityBg(item.rarity)} ${
                   equipped ? 'ring-2 ring-blue-500' : ''
-                }`}
+                } ${isReward && owned ? 'ring-2 ring-yellow-500' : ''}`}
               >
                 {/* Item Preview */}
                 <div className="flex justify-center mb-4">
@@ -241,33 +269,53 @@ export default function ShopPage() {
                   <div className="flex items-center gap-1">
                     <Star className="w-4 h-4 text-yellow-400" />
                     <span className={`font-bold ${canAfford || owned ? 'text-yellow-400' : 'text-red-400'}`}>
-                      {item.price}
+                      {item.price.toLocaleString()}
                     </span>
                   </div>
 
-                  {owned ? (
-                    equipped ? (
-                      <div className="flex items-center gap-1 text-green-400 text-sm">
-                        <Check className="w-4 h-4" />
-                        Надето
+                  {isReward ? (
+                    // Rewards can only be purchased, not equipped
+                    owned ? (
+                      <div className="flex items-center gap-1 text-yellow-400 text-sm font-medium">
+                        <Gift className="w-4 h-4" />
+                        Получено
                       </div>
                     ) : (
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => handleEquip(item)}
+                        disabled={!canAfford || purchasing === item.id}
+                        onClick={() => handlePurchase(item)}
+                        className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600"
                       >
-                        Надеть
+                        {purchasing === item.id ? '...' : 'Купить'}
                       </Button>
                     )
                   ) : (
-                    <Button
-                      size="sm"
-                      disabled={!canAfford || purchasing === item.id}
-                      onClick={() => handlePurchase(item)}
-                    >
-                      {purchasing === item.id ? '...' : 'Купить'}
-                    </Button>
+                    // Avatars and frames can be purchased and equipped
+                    owned ? (
+                      equipped ? (
+                        <div className="flex items-center gap-1 text-green-400 text-sm">
+                          <Check className="w-4 h-4" />
+                          Надето
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEquip(item)}
+                        >
+                          Надеть
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        size="sm"
+                        disabled={!canAfford || purchasing === item.id}
+                        onClick={() => handlePurchase(item)}
+                      >
+                        {purchasing === item.id ? '...' : 'Купить'}
+                      </Button>
+                    )
                   )}
                 </div>
               </Card>
@@ -278,8 +326,7 @@ export default function ShopPage() {
         {/* Info */}
         <div className="mt-8 p-4 bg-gray-800/50 rounded-xl">
           <p className="text-gray-400 text-sm text-center">
-            Решай задачи и получай баллы, чтобы покупать крутые аватары!
-            Легендарные аватары имеют анимацию свечения.
+            🎮 Решай задачи и получай баллы! Легендарные и мифические предметы имеют анимацию свечения.
           </p>
         </div>
       </div>
