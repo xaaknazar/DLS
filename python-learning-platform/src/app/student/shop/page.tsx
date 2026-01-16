@@ -245,12 +245,20 @@ export default function ShopPage() {
                 {/* Item Preview */}
                 <div className="flex justify-center mb-4">
                   <div
-                    className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl
+                    className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden
                       ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
                       ${item.borderColor || ''}
                     `}
                   >
-                    {item.emoji || '?'}
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.nameRu}
+                        className="w-16 h-16 object-contain"
+                      />
+                    ) : (
+                      <span className="text-3xl">{item.emoji || '?'}</span>
+                    )}
                   </div>
                 </div>
 
