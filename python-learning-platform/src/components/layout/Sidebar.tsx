@@ -19,6 +19,7 @@ import {
   GraduationCap,
   MessageCircle,
   ShoppingBag,
+  Bell,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -26,6 +27,7 @@ const studentNavItems = [
   { href: '/student/topics', label: 'Темы', icon: BookOpen },
   { href: '/student/problems', label: 'Задачи', icon: Code },
   { href: '/student/leaderboard', label: 'Рейтинг', icon: Trophy },
+  { href: '/student/announcements', label: 'Объявления', icon: Bell },
   { href: '/student/achievements', label: 'Достижения', icon: Award },
   { href: '/student/shop', label: 'Магазин', icon: ShoppingBag },
   { href: '/student/chat', label: 'Чат с учителем', icon: MessageCircle },
@@ -37,6 +39,7 @@ const teacherNavItems = [
   { href: '/teacher/students/manage', label: 'Управление', icon: UserCog },
   { href: '/teacher/analytics', label: 'Аналитика', icon: BarChart3 },
   { href: '/teacher/content', label: 'Контент', icon: BookOpen },
+  { href: '/teacher/announcements', label: 'Объявления', icon: Bell },
   { href: '/teacher/chat', label: 'Сообщения', icon: MessageCircle },
 ];
 

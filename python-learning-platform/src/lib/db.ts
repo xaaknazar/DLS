@@ -1,4 +1,4 @@
-import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
+import { Student, Teacher, Topic, Problem, Submission, Message, Announcement } from '@/types';
 import Redis from 'ioredis';
 import { problems as defaultProblemsData } from '@/data/problems';
 import { topics as defaultTopicsData } from '@/data/topics';
@@ -34,12 +34,14 @@ let memoryStore: {
   problems: Problem[];
   submissions: Submission[];
   messages: Message[];
+  announcements: Announcement[];
 } = {
   users: [],
   topics: [],
   problems: [],
   submissions: [],
   messages: [],
+  announcements: [],
 };
 
 let initialized = false;
@@ -406,6 +408,41 @@ export async function markMessagesAsRead(userId: string, fromUserId: string): Pr
     }
   });
   await setData('messages', messages);
+}
+
+// ==================== ANNOUNCEMENTS ====================
+export async function getAnnouncements(): Promise<Announcement[]> {
+  return getData('announcements', []);
+}
+
+export async function getAnnouncementById(id: string): Promise<Announcement | null> {
+  const announcements = await getAnnouncements();
+  return announcements.find(a => a.id === id) || null;
+}
+
+export async function createAnnouncement(announcement: Announcement): Promise<Announcement> {
+  const announcements = await getAnnouncements();
+  announcements.unshift(announcement); // Add to beginning (newest first)
+  await setData('announcements', announcements);
+  return announcement;
+}
+
+export async function updateAnnouncement(id: string, updates: Partial<Announcement>): Promise<Announcement | null> {
+  const announcements = await getAnnouncements();
+  const index = announcements.findIndex(a => a.id === id);
+  if (index === -1) return null;
+  announcements[index] = { ...announcements[index], ...updates, updatedAt: new Date() };
+  await setData('announcements', announcements);
+  return announcements[index];
+}
+
+export async function deleteAnnouncement(id: string): Promise<boolean> {
+  const announcements = await getAnnouncements();
+  const index = announcements.findIndex(a => a.id === id);
+  if (index === -1) return false;
+  announcements.splice(index, 1);
+  await setData('announcements', announcements);
+  return true;
 }
 
 // ==================== INITIALIZATION ====================

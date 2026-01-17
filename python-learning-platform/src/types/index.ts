@@ -161,3 +161,15 @@ export interface Conversation {
   unreadCount: number;
   updatedAt: Date;
 }
+
+// Announcement types
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  isImportant: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
