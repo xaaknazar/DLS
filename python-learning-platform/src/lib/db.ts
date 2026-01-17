@@ -105,6 +105,9 @@ async function getData<T>(key: string, defaultValue: T): Promise<T> {
 }
 
 async function setData<T>(key: string, data: T): Promise<void> {
+  // Always update memory store as cache first
+  (memoryStore as any)[key] = data;
+
   // Try standard Redis first
   if (redisUrl) {
     await redisSet(key, data);
@@ -114,8 +117,6 @@ async function setData<T>(key: string, data: T): Promise<void> {
   if (isVercelKV) {
     await kvSet(key, data);
   }
-  // Always update memory store as cache
-  (memoryStore as any)[key] = data;
 }
 
 // ==================== USERS ====================
