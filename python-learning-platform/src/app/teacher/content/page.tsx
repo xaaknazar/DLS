@@ -16,6 +16,7 @@ import {
   Trash2,
   ChevronRight,
   FileText,
+  FlaskConical,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -192,6 +193,12 @@ export default function ContentManagementPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-lg">
+                          <FlaskConical className="w-3.5 h-3.5 text-purple-400" />
+                          <span className="text-purple-400 text-sm font-medium">
+                            {problem.testCases?.length || 0}
+                          </span>
+                        </div>
                         <Badge className={getDifficultyColor(problem.difficulty)}>
                           {getDifficultyLabel(problem.difficulty)}
                         </Badge>
