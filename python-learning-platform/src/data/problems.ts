@@ -17,7 +17,9 @@ export const problems: Problem[] = [
     solution: 'message = "Hello, World!"\nprint(message)',
     hints: ['Используйте оператор = для присваивания', 'Строки заключаются в кавычки'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: 'Hello, World!', isHidden: false, description: 'Вывод Hello, World!' }
+      { id: 'tc1', input: '', expectedOutput: 'Hello, World!', isHidden: false, description: 'Вывод Hello, World!' },
+      { id: 'tc2', input: '', expectedOutput: 'Hello, World!', isHidden: true, description: 'Проверка точного вывода' },
+      { id: 'tc3', input: '', expectedOutput: 'Hello, World!', isHidden: true, description: 'Проверка восклицательного знака' }
     ]
   },
   {
@@ -56,7 +58,9 @@ export const problems: Problem[] = [
     hints: ['Можно просто вывести в нужном порядке', 'Или использовать обмен: a, b = b, a'],
     testCases: [
       { id: 'tc1', input: 'hello\nworld', expectedOutput: 'world\nhello', isHidden: false },
-      { id: 'tc2', input: '1\n2', expectedOutput: '2\n1', isHidden: false }
+      { id: 'tc2', input: '1\n2', expectedOutput: '2\n1', isHidden: false },
+      { id: 'tc3', input: 'abc\nxyz', expectedOutput: 'xyz\nabc', isHidden: true, description: 'Короткие строки' },
+      { id: 'tc4', input: 'Python\nJava', expectedOutput: 'Java\nPython', isHidden: true, description: 'Языки программирования' }
     ]
   },
   {
@@ -557,7 +561,9 @@ export const problems: Problem[] = [
     hints: ['range(1, n+1) генерирует числа от 1 до n'],
     testCases: [
       { id: 'tc1', input: '5', expectedOutput: '1\n2\n3\n4\n5', isHidden: false },
-      { id: 'tc2', input: '3', expectedOutput: '1\n2\n3', isHidden: false }
+      { id: 'tc2', input: '3', expectedOutput: '1\n2\n3', isHidden: false },
+      { id: 'tc3', input: '1', expectedOutput: '1', isHidden: true, description: 'Только одно число' },
+      { id: 'tc4', input: '10', expectedOutput: '1\n2\n3\n4\n5\n6\n7\n8\n9\n10', isHidden: true, description: 'До 10' }
     ]
   },
   {
@@ -576,7 +582,9 @@ export const problems: Problem[] = [
     hints: ['Накапливайте сумму в переменной'],
     testCases: [
       { id: 'tc1', input: '5', expectedOutput: '15', isHidden: false },
-      { id: 'tc2', input: '10', expectedOutput: '55', isHidden: false }
+      { id: 'tc2', input: '10', expectedOutput: '55', isHidden: false },
+      { id: 'tc3', input: '1', expectedOutput: '1', isHidden: true, description: 'Сумма одного числа' },
+      { id: 'tc4', input: '100', expectedOutput: '5050', isHidden: true, description: 'Сумма до 100' }
     ]
   },
   {
@@ -616,7 +624,10 @@ export const problems: Problem[] = [
     solution: 'n = int(input())\nfor i in range(1, 11):\n    print(f"{n} * {i} = {n * i}")',
     hints: ['Используйте f-строки для форматирования'],
     testCases: [
-      { id: 'tc1', input: '5', expectedOutput: '5 * 1 = 5\n5 * 2 = 10\n5 * 3 = 15\n5 * 4 = 20\n5 * 5 = 25\n5 * 6 = 30\n5 * 7 = 35\n5 * 8 = 40\n5 * 9 = 45\n5 * 10 = 50', isHidden: false }
+      { id: 'tc1', input: '5', expectedOutput: '5 * 1 = 5\n5 * 2 = 10\n5 * 3 = 15\n5 * 4 = 20\n5 * 5 = 25\n5 * 6 = 30\n5 * 7 = 35\n5 * 8 = 40\n5 * 9 = 45\n5 * 10 = 50', isHidden: false },
+      { id: 'tc2', input: '3', expectedOutput: '3 * 1 = 3\n3 * 2 = 6\n3 * 3 = 9\n3 * 4 = 12\n3 * 5 = 15\n3 * 6 = 18\n3 * 7 = 21\n3 * 8 = 24\n3 * 9 = 27\n3 * 10 = 30', isHidden: true, description: 'Таблица для 3' },
+      { id: 'tc3', input: '7', expectedOutput: '7 * 1 = 7\n7 * 2 = 14\n7 * 3 = 21\n7 * 4 = 28\n7 * 5 = 35\n7 * 6 = 42\n7 * 7 = 49\n7 * 8 = 56\n7 * 9 = 63\n7 * 10 = 70', isHidden: true, description: 'Таблица для 7' },
+      { id: 'tc4', input: '1', expectedOutput: '1 * 1 = 1\n1 * 2 = 2\n1 * 3 = 3\n1 * 4 = 4\n1 * 5 = 5\n1 * 6 = 6\n1 * 7 = 7\n1 * 8 = 8\n1 * 9 = 9\n1 * 10 = 10', isHidden: true, description: 'Таблица для 1' }
     ]
   },
   {
@@ -769,7 +780,9 @@ export const problems: Problem[] = [
     hints: ['split() разделяет строку на список'],
     testCases: [
       { id: 'tc1', input: '1 2 3 4 5', expectedOutput: '15', isHidden: false },
-      { id: 'tc2', input: '10 20 30', expectedOutput: '60', isHidden: false }
+      { id: 'tc2', input: '10 20 30', expectedOutput: '60', isHidden: false },
+      { id: 'tc3', input: '0 0 0', expectedOutput: '0', isHidden: true, description: 'Все нули' },
+      { id: 'tc4', input: '-5 5 -10 10', expectedOutput: '0', isHidden: true, description: 'Сумма ноль' }
     ]
   },
   {
@@ -788,7 +801,9 @@ export const problems: Problem[] = [
     hints: ['Сравнивайте каждый элемент с текущим максимумом'],
     testCases: [
       { id: 'tc1', input: '3 1 4 1 5 9', expectedOutput: '9', isHidden: false },
-      { id: 'tc2', input: '-5 -2 -10', expectedOutput: '-2', isHidden: false }
+      { id: 'tc2', input: '-5 -2 -10', expectedOutput: '-2', isHidden: false },
+      { id: 'tc3', input: '100', expectedOutput: '100', isHidden: true, description: 'Один элемент' },
+      { id: 'tc4', input: '5 5 5 5', expectedOutput: '5', isHidden: true, description: 'Все одинаковые' }
     ]
   },
   {
@@ -829,7 +844,9 @@ export const problems: Problem[] = [
     hints: ['Используйте счётчик'],
     testCases: [
       { id: 'tc1', input: '1 2 2 3 2 4\n2', expectedOutput: '3', isHidden: false },
-      { id: 'tc2', input: 'a b a c a\na', expectedOutput: '3', isHidden: false }
+      { id: 'tc2', input: 'a b a c a\na', expectedOutput: '3', isHidden: false },
+      { id: 'tc3', input: '1 1 1 1 1\n1', expectedOutput: '5', isHidden: true, description: 'Все одинаковые' },
+      { id: 'tc4', input: 'x y z\nw', expectedOutput: '0', isHidden: true, description: 'Элемент не найден' }
     ]
   },
   {
@@ -982,7 +999,9 @@ export const problems: Problem[] = [
     hints: ['Используйте return для возврата значения'],
     testCases: [
       { id: 'tc1', input: '5', expectedOutput: '10', isHidden: false },
-      { id: 'tc2', input: '0', expectedOutput: '0', isHidden: false }
+      { id: 'tc2', input: '0', expectedOutput: '0', isHidden: false },
+      { id: 'tc3', input: '-3', expectedOutput: '-6', isHidden: true, description: 'Отрицательное число' },
+      { id: 'tc4', input: '100', expectedOutput: '200', isHidden: true, description: 'Большое число' }
     ]
   },
   {
@@ -1001,7 +1020,9 @@ export const problems: Problem[] = [
     hints: ['Сравните все три числа'],
     testCases: [
       { id: 'tc1', input: '1 2 3', expectedOutput: '3', isHidden: false },
-      { id: 'tc2', input: '5 5 5', expectedOutput: '5', isHidden: false }
+      { id: 'tc2', input: '5 5 5', expectedOutput: '5', isHidden: false },
+      { id: 'tc3', input: '10 5 7', expectedOutput: '10', isHidden: true, description: 'Первый максимум' },
+      { id: 'tc4', input: '-1 -5 -3', expectedOutput: '-1', isHidden: true, description: 'Отрицательные числа' }
     ]
   },
   {
@@ -1086,7 +1107,9 @@ export const problems: Problem[] = [
     hints: ['Значение по умолчанию задаётся через ='],
     testCases: [
       { id: 'tc1', input: 'World', expectedOutput: 'Hello, World!', isHidden: false },
-      { id: 'tc2', input: 'Python', expectedOutput: 'Hello, Python!', isHidden: false }
+      { id: 'tc2', input: 'Python', expectedOutput: 'Hello, Python!', isHidden: false },
+      { id: 'tc3', input: 'Alice', expectedOutput: 'Hello, Alice!', isHidden: true, description: 'Имя Alice' },
+      { id: 'tc4', input: 'User', expectedOutput: 'Hello, User!', isHidden: true, description: 'Имя User' }
     ]
   },
   {
@@ -1170,7 +1193,9 @@ export const problems: Problem[] = [
     solution: 'def timer(func):\n    def wrapper(*args, **kwargs):\n        print("start")\n        result = func(*args, **kwargs)\n        print("end")\n        return result\n    return wrapper\n\n@timer\ndef say_hello():\n    print("hello")\n\nsay_hello()',
     hints: ['Декоратор - функция, которая принимает функцию и возвращает функцию'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: 'start\nhello\nend', isHidden: false, description: 'Основной тест' }
+      { id: 'tc1', input: '', expectedOutput: 'start\nhello\nend', isHidden: false, description: 'Основной тест' },
+      { id: 'tc2', input: '', expectedOutput: 'start\nhello\nend', isHidden: true, description: 'Проверка порядка вызова' },
+      { id: 'tc3', input: '', expectedOutput: 'start\nhello\nend', isHidden: true, description: 'Проверка формата вывода' }
     ]
   },
 
@@ -1191,7 +1216,9 @@ export const problems: Problem[] = [
     hints: ['__init__ - конструктор класса', 'self - ссылка на текущий объект'],
     testCases: [
       { id: 'tc1', input: 'Alice\n25', expectedOutput: 'Hello, I am Alice', isHidden: false },
-      { id: 'tc2', input: 'Bob\n30', expectedOutput: 'Hello, I am Bob', isHidden: false }
+      { id: 'tc2', input: 'Bob\n30', expectedOutput: 'Hello, I am Bob', isHidden: false },
+      { id: 'tc3', input: 'Charlie\n20', expectedOutput: 'Hello, I am Charlie', isHidden: true, description: 'Имя Charlie' },
+      { id: 'tc4', input: 'Diana\n18', expectedOutput: 'Hello, I am Diana', isHidden: true, description: 'Имя Diana' }
     ]
   },
   {
@@ -1210,7 +1237,9 @@ export const problems: Problem[] = [
     hints: ['Площадь = ширина × высота'],
     testCases: [
       { id: 'tc1', input: '5 3', expectedOutput: '15\n16', isHidden: false },
-      { id: 'tc2', input: '10 10', expectedOutput: '100\n40', isHidden: false }
+      { id: 'tc2', input: '10 10', expectedOutput: '100\n40', isHidden: false },
+      { id: 'tc3', input: '7 2', expectedOutput: '14\n18', isHidden: true, description: 'Прямоугольник 7x2' },
+      { id: 'tc4', input: '1 1', expectedOutput: '1\n4', isHidden: true, description: 'Единичный квадрат' }
     ]
   },
   {
@@ -1228,7 +1257,9 @@ export const problems: Problem[] = [
     solution: 'class BankAccount:\n    def __init__(self, balance=0):\n        self.balance = balance\n    \n    def deposit(self, amount):\n        self.balance += amount\n    \n    def withdraw(self, amount):\n        if amount <= self.balance:\n            self.balance -= amount\n            return True\n        return False\n    \n    def get_balance(self):\n        return self.balance\n\nacc = BankAccount(100)\nacc.deposit(50)\nacc.withdraw(30)\nprint(acc.get_balance())',
     hints: ['Проверяйте достаточность средств при снятии'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: '120', isHidden: false, description: '100+50-30=120' }
+      { id: 'tc1', input: '', expectedOutput: '120', isHidden: false, description: '100+50-30=120' },
+      { id: 'tc2', input: '', expectedOutput: '120', isHidden: true, description: 'Проверка депозита' },
+      { id: 'tc3', input: '', expectedOutput: '120', isHidden: true, description: 'Проверка снятия' }
     ]
   },
   {
@@ -1266,7 +1297,9 @@ export const problems: Problem[] = [
     solution: 'class Counter:\n    count = 0\n    \n    def __init__(self):\n        Counter.count += 1\n    \n    @classmethod\n    def get_count(cls):\n        return cls.count\n\nc1 = Counter()\nc2 = Counter()\nc3 = Counter()\nprint(Counter.get_count())',
     hints: ['Переменная класса определяется вне __init__'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: '3', isHidden: false, description: 'Три экземпляра' }
+      { id: 'tc1', input: '', expectedOutput: '3', isHidden: false, description: 'Три экземпляра' },
+      { id: 'tc2', input: '', expectedOutput: '3', isHidden: true, description: 'Проверка счётчика' },
+      { id: 'tc3', input: '', expectedOutput: '3', isHidden: true, description: 'Переменная класса' }
     ]
   },
   {
@@ -1284,7 +1317,9 @@ export const problems: Problem[] = [
     solution: 'class Book:\n    def __init__(self, title, author):\n        self.title = title\n        self.author = author\n    \n    def __str__(self):\n        return f"{self.title} by {self.author}"\n\ntitle = input()\nauthor = input()\nbook = Book(title, author)\nprint(book)',
     hints: ['__str__ вызывается при print(объект)'],
     testCases: [
-      { id: 'tc1', input: 'Python\nGuido', expectedOutput: 'Python by Guido', isHidden: false }
+      { id: 'tc1', input: 'Python\nGuido', expectedOutput: 'Python by Guido', isHidden: false },
+      { id: 'tc2', input: 'Java\nJames', expectedOutput: 'Java by James', isHidden: true, description: 'Книга Java' },
+      { id: 'tc3', input: 'Clean Code\nRobert', expectedOutput: 'Clean Code by Robert', isHidden: true, description: 'Clean Code' }
     ]
   },
   {
@@ -1302,7 +1337,9 @@ export const problems: Problem[] = [
     solution: 'class Stack:\n    def __init__(self):\n        self.items = []\n    \n    def push(self, item):\n        self.items.append(item)\n    \n    def pop(self):\n        if not self.is_empty():\n            return self.items.pop()\n        return None\n    \n    def peek(self):\n        if not self.is_empty():\n            return self.items[-1]\n        return None\n    \n    def is_empty(self):\n        return len(self.items) == 0\n\ns = Stack()\ns.push(1)\ns.push(2)\ns.push(3)\nprint(s.pop())\nprint(s.peek())',
     hints: ['LIFO - последний вошёл, первый вышел'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: '3\n2', isHidden: false, description: 'push 1,2,3 затем pop и peek' }
+      { id: 'tc1', input: '', expectedOutput: '3\n2', isHidden: false, description: 'push 1,2,3 затем pop и peek' },
+      { id: 'tc2', input: '', expectedOutput: '3\n2', isHidden: true, description: 'Проверка LIFO' },
+      { id: 'tc3', input: '', expectedOutput: '3\n2', isHidden: true, description: 'Проверка pop и peek' }
     ]
   },
   {
@@ -1320,7 +1357,9 @@ export const problems: Problem[] = [
     solution: 'class Vector:\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\n    \n    def __add__(self, other):\n        return Vector(self.x + other.x, self.y + other.y)\n    \n    def __str__(self):\n        return f"({self.x}, {self.y})"\n\nv1 = Vector(1, 2)\nv2 = Vector(3, 4)\nv3 = v1 + v2\nprint(v3)',
     hints: ['__add__ определяет поведение оператора +'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: '(4, 6)', isHidden: false, description: '(1,2)+(3,4)=(4,6)' }
+      { id: 'tc1', input: '', expectedOutput: '(4, 6)', isHidden: false, description: '(1,2)+(3,4)=(4,6)' },
+      { id: 'tc2', input: '', expectedOutput: '(4, 6)', isHidden: true, description: 'Проверка сложения' },
+      { id: 'tc3', input: '', expectedOutput: '(4, 6)', isHidden: true, description: 'Проверка __add__' }
     ]
   },
   {
@@ -1338,7 +1377,9 @@ export const problems: Problem[] = [
     solution: 'class Circle:\n    def __init__(self, radius):\n        self._radius = radius\n    \n    @property\n    def radius(self):\n        return self._radius\n    \n    @radius.setter\n    def radius(self, value):\n        if value > 0:\n            self._radius = value\n    \n    @property\n    def area(self):\n        return 3.14159 * self._radius ** 2\n\nc = Circle(5)\nprint(round(c.area, 2))',
     hints: ['@property превращает метод в атрибут'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: '78.54', isHidden: false, description: 'Площадь круга r=5' }
+      { id: 'tc1', input: '', expectedOutput: '78.54', isHidden: false, description: 'Площадь круга r=5' },
+      { id: 'tc2', input: '', expectedOutput: '78.54', isHidden: true, description: 'Проверка property' },
+      { id: 'tc3', input: '', expectedOutput: '78.54', isHidden: true, description: 'Проверка вычисления' }
     ]
   },
   {
@@ -1356,7 +1397,9 @@ export const problems: Problem[] = [
     solution: 'from abc import ABC, abstractmethod\n\nclass Shape(ABC):\n    @abstractmethod\n    def area(self):\n        pass\n\nclass Circle(Shape):\n    def __init__(self, radius):\n        self.radius = radius\n    \n    def area(self):\n        return 3.14 * self.radius ** 2\n\nclass Square(Shape):\n    def __init__(self, side):\n        self.side = side\n    \n    def area(self):\n        return self.side ** 2\n\nc = Circle(5)\ns = Square(4)\nprint(c.area())\nprint(s.area())',
     hints: ['Используйте ABC из модуля abc'],
     testCases: [
-      { id: 'tc1', input: '', expectedOutput: '78.5\n16', isHidden: false, description: 'Круг r=5 и квадрат 4×4' }
+      { id: 'tc1', input: '', expectedOutput: '78.5\n16', isHidden: false, description: 'Круг r=5 и квадрат 4×4' },
+      { id: 'tc2', input: '', expectedOutput: '78.5\n16', isHidden: true, description: 'Проверка Circle' },
+      { id: 'tc3', input: '', expectedOutput: '78.5\n16', isHidden: true, description: 'Проверка Square' }
     ]
   }
 ];
