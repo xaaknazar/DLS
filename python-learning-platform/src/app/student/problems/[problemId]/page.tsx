@@ -26,6 +26,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 
 export default function ProblemPage() {
   const params = useParams();
@@ -309,7 +310,7 @@ export default function ProblemPage() {
 
               {/* Description */}
               <h2 className="text-lg font-semibold text-white mb-2">Описание</h2>
-              <p className="text-gray-300 mb-6">{problem.descriptionRu}</p>
+              <MarkdownRenderer content={problem.descriptionRu} className="mb-6" />
 
               {/* Test cases preview */}
               <h3 className="text-lg font-semibold text-white mb-3">Примеры</h3>
