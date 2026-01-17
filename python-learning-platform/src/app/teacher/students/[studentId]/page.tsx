@@ -33,6 +33,7 @@ import {
   Trash2,
   Ban,
   RotateCcw,
+  Award,
 } from 'lucide-react';
 
 export default function StudentDetailPage() {
@@ -147,6 +148,34 @@ export default function StudentDetailPage() {
       toast.success(`Задача отменена, снято ${points} баллов`);
     } catch {
       toast.error('Ошибка при отмене задачи');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleRevokeAchievement = async (achievementId: string) => {
+    const achievement = achievements.find(a => a.id === achievementId);
+    const points = achievement?.points || 0;
+
+    if (!confirm(`Вы уверены? Это уберёт достижение "${achievement?.titleRu}" и снимет ${points} баллов.`)) {
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/revoke-achievement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ achievementId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents();
+      toast.success(`Достижение убрано, снято ${points} баллов`);
+    } catch {
+      toast.error('Ошибка при удалении достижения');
     }
     setIsUpdating(false);
   };
@@ -514,6 +543,57 @@ export default function StudentDetailPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </Card>
+
+        {/* Achievements with Revoke */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Award className="w-5 h-5 text-purple-400" />
+            Достижения ({earnedAchievements.length})
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Нажмите кнопку отмены, чтобы убрать достижение и снять бонусные баллы
+          </p>
+          {earnedAchievements.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">У ученика пока нет достижений</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {earnedAchievements.map((achievement) => (
+                <div
+                  key={achievement.id}
+                  className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800/70 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-${achievement.color}-500/20`}>
+                      {achievement.icon}
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{achievement.titleRu}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-yellow-400 text-sm flex items-center gap-1">
+                          <Star className="w-3 h-3" />
+                          +{achievement.points}
+                        </span>
+                        <span className="text-gray-500 text-xs">
+                          {achievement.descriptionRu}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRevokeAchievement(achievement.id)}
+                    disabled={isUpdating}
+                    className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-1" />
+                    Убрать
+                  </Button>
+                </div>
+              ))}
             </div>
           )}
         </Card>
