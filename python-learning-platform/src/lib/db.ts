@@ -269,6 +269,10 @@ export async function deleteProblem(id: string): Promise<boolean> {
   return true;
 }
 
+export async function resetProblems(): Promise<void> {
+  await setData('problems', defaultProblemsData);
+}
+
 // ==================== SUBMISSIONS ====================
 export async function getSubmissions(): Promise<Submission[]> {
   return getData('submissions', []);
