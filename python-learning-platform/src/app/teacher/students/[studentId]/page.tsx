@@ -31,6 +31,8 @@ import {
   ShoppingBag,
   Gift,
   Trash2,
+  Ban,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function StudentDetailPage() {
@@ -44,6 +46,8 @@ export default function StudentDetailPage() {
     updateStudentPoints,
     problems: allProblems,
     topics,
+    loadProblems,
+    loadTopics,
   } = useStore();
 
   const [pointsToAdd, setPointsToAdd] = useState(10);
@@ -55,6 +59,8 @@ export default function StudentDetailPage() {
   useEffect(() => {
     loadStudents();
     loadSubmissions(studentId);
+    loadProblems();
+    loadTopics();
   }, [studentId]);
 
   const student = students.find((s) => s.id === studentId);
@@ -116,6 +122,31 @@ export default function StudentDetailPage() {
       }
     } catch {
       toast.error('Ошибка при управлении предметом');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleRevokeProblem = async (problemId: string, points: number) => {
+    if (!confirm(`Вы уверены? Это уберёт задачу из решённых и снимет ${points} баллов.`)) {
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/revoke-problem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemId, points }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents();
+      toast.success(`Задача отменена, снято ${points} баллов`);
+    } catch {
+      toast.error('Ошибка при отмене задачи');
     }
     setIsUpdating(false);
   };
@@ -425,6 +456,66 @@ export default function StudentDetailPage() {
               );
             })}
           </div>
+        </Card>
+
+        {/* Completed Problems with Revoke */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-400" />
+            Решённые задачи ({student.completedProblems.length})
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Если ученик списал - нажмите кнопку отмены, чтобы убрать задачу и снять баллы
+          </p>
+          {student.completedProblems.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">Ученик ещё не решил ни одной задачи</p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {student.completedProblems.map((problemId) => {
+                const problem = allProblems.find((p) => p.id === problemId);
+                if (!problem) return null;
+
+                return (
+                  <div
+                    key={problemId}
+                    className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <div>
+                        <p className="text-white font-medium">{problem.titleRu}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge
+                            className={getDifficultyColor(problem.difficulty)}
+                            size="sm"
+                          >
+                            {getDifficultyLabel(problem.difficulty)}
+                          </Badge>
+                          <span className="text-yellow-400 text-sm flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            {problem.points}
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            {topics.find(t => t.id === problem.topicId)?.titleRu || 'Тема'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRevokeProblem(problemId, problem.points)}
+                      disabled={isUpdating}
+                      className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-1" />
+                      Отменить
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
         {/* Recent Submissions with Code View */}
