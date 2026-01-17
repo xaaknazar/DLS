@@ -99,11 +99,17 @@ export default function Sidebar() {
               const frameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
 
               return (
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg
-                  ${avatarItem ? `bg-gradient-to-br ${avatarItem.gradient}` : 'bg-gradient-to-br from-green-500 to-emerald-600'}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                  ${avatarItem ? `bg-gradient-to-br ${avatarItem.gradient || 'from-gray-600 to-gray-700'}` : 'bg-gradient-to-br from-green-500 to-emerald-600'}
                   ${frameItem?.borderColor || ''}
                 `}>
-                  {avatarItem?.emoji || <span className="text-white font-bold">{user.name.charAt(0)}</span>}
+                  {avatarItem?.image ? (
+                    <img src={avatarItem.image} alt={avatarItem.nameRu} className="w-8 h-8 object-contain" />
+                  ) : avatarItem?.emoji ? (
+                    <span className="text-lg">{avatarItem.emoji}</span>
+                  ) : (
+                    <span className="text-white font-bold">{user.name.charAt(0)}</span>
+                  )}
                 </div>
               );
             }

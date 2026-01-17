@@ -100,9 +100,31 @@ export default function LeaderboardPage() {
         <Card className="p-6 mb-8 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                {currentStudent.name.charAt(0)}
-              </div>
+              {(() => {
+                const avatarItem = currentStudent.equippedAvatar ? getShopItemById(currentStudent.equippedAvatar) : null;
+                const frameItem = currentStudent.equippedFrame ? getShopItemById(currentStudent.equippedFrame) : null;
+
+                if (avatarItem) {
+                  return (
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center overflow-hidden
+                      bg-gradient-to-br ${avatarItem.gradient || 'from-blue-500 to-purple-600'}
+                      ${frameItem?.borderColor || ''}
+                    `}>
+                      {avatarItem.image ? (
+                        <img src={avatarItem.image} alt={avatarItem.nameRu} className="w-12 h-12 object-contain" />
+                      ) : (
+                        <span className="text-2xl">{avatarItem.emoji}</span>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                    {currentStudent.name.charAt(0)}
+                  </div>
+                );
+              })()}
               <div>
                 <p className="text-gray-400 text-sm">Твоя позиция</p>
                 <p className="text-2xl font-bold text-white">
@@ -181,11 +203,15 @@ export default function LeaderboardPage() {
 
                       if (avatarItem) {
                         return (
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg
-                            bg-gradient-to-br ${avatarItem.gradient}
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                            bg-gradient-to-br ${avatarItem.gradient || 'from-gray-600 to-gray-700'}
                             ${frameItem?.borderColor || ''}
                           `}>
-                            {avatarItem.emoji}
+                            {avatarItem.image ? (
+                              <img src={avatarItem.image} alt={avatarItem.nameRu} className="w-8 h-8 object-contain" />
+                            ) : (
+                              <span className="text-lg">{avatarItem.emoji}</span>
+                            )}
                           </div>
                         );
                       }

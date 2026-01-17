@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
+import { getShopItemById } from '@/data/shop';
 import { MessageCircle, ChevronRight, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -34,13 +35,17 @@ export default function TeacherChatPage() {
     return () => clearInterval(interval);
   }, [user?.id]);
 
+  const getStudent = (studentId: string) => {
+    return students.find((s) => s.id === studentId);
+  };
+
   const getStudentName = (studentId: string) => {
-    const student = students.find((s) => s.id === studentId);
+    const student = getStudent(studentId);
     return student?.name || 'Ученик';
   };
 
   const getStudentGrade = (studentId: string) => {
-    const student = students.find((s) => s.id === studentId);
+    const student = getStudent(studentId);
     return student?.grade || 0;
   };
 
@@ -73,9 +78,32 @@ export default function TeacherChatPage() {
                 className="block"
               >
                 <div className="p-4 hover:bg-gray-800/50 transition-colors flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                    {getStudentName(conv.studentId).charAt(0)}
-                  </div>
+                  {(() => {
+                    const student = getStudent(conv.studentId);
+                    const avatarItem = student?.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
+                    const frameItem = student?.equippedFrame ? getShopItemById(student.equippedFrame) : null;
+
+                    if (avatarItem) {
+                      return (
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center overflow-hidden
+                          bg-gradient-to-br ${avatarItem.gradient || 'from-gray-600 to-gray-700'}
+                          ${frameItem?.borderColor || ''}
+                        `}>
+                          {avatarItem.image ? (
+                            <img src={avatarItem.image} alt={avatarItem.nameRu} className="w-10 h-10 object-contain" />
+                          ) : (
+                            <span className="text-xl">{avatarItem.emoji}</span>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                        {getStudentName(conv.studentId).charAt(0)}
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

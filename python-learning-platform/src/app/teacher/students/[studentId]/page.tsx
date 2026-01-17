@@ -155,9 +155,31 @@ export default function StudentDetailPage() {
           {/* Profile Card */}
           <Card className="p-6">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {student.name.charAt(0)}
-              </div>
+              {(() => {
+                const avatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
+                const frameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
+
+                if (avatarItem) {
+                  return (
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center overflow-hidden
+                      bg-gradient-to-br ${avatarItem.gradient || 'from-gray-600 to-gray-700'}
+                      ${frameItem?.borderColor || ''}
+                    `}>
+                      {avatarItem.image ? (
+                        <img src={avatarItem.image} alt={avatarItem.nameRu} className="w-14 h-14 object-contain" />
+                      ) : (
+                        <span className="text-3xl">{avatarItem.emoji}</span>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                    {student.name.charAt(0)}
+                  </div>
+                );
+              })()}
               <div>
                 <h2 className="text-xl font-bold text-white">{student.name}</h2>
                 <p className="text-gray-400">{student.grade} класс</p>

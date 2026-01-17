@@ -151,11 +151,17 @@ export default function ShopPage() {
           <Card className="p-6 lg:col-span-2">
             <h3 className="text-lg font-semibold text-white mb-4">Твой аватар</h3>
             <div className="flex items-center gap-6">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl
-                ${equippedAvatarItem ? `bg-gradient-to-br ${equippedAvatarItem.gradient}` : 'bg-gradient-to-br from-green-500 to-emerald-600'}
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden
+                ${equippedAvatarItem ? `bg-gradient-to-br ${equippedAvatarItem.gradient || 'from-gray-600 to-gray-700'}` : 'bg-gradient-to-br from-green-500 to-emerald-600'}
                 ${equippedFrameItem?.borderColor || ''}
               `}>
-                {equippedAvatarItem?.emoji || student.name.charAt(0)}
+                {equippedAvatarItem?.image ? (
+                  <img src={equippedAvatarItem.image} alt={equippedAvatarItem.nameRu} className="w-20 h-20 object-contain" />
+                ) : equippedAvatarItem?.emoji ? (
+                  <span className="text-4xl">{equippedAvatarItem.emoji}</span>
+                ) : (
+                  <span className="text-4xl text-white font-bold">{student.name.charAt(0)}</span>
+                )}
               </div>
               <div>
                 <p className="text-xl font-bold text-white">{student.name}</p>
