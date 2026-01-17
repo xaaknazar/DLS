@@ -1,6 +1,7 @@
 import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
 import Redis from 'ioredis';
 import { problems as defaultProblemsData } from '@/data/problems';
+import { topics as defaultTopicsData } from '@/data/topics';
 
 // Check for Redis connection
 const redisUrl = typeof process !== 'undefined' ? process.env.REDIS_URL : null;
@@ -273,6 +274,15 @@ export async function resetProblems(): Promise<void> {
   await setData('problems', defaultProblemsData);
 }
 
+export async function resetTopics(): Promise<void> {
+  await setData('topics', defaultTopicsData);
+}
+
+export async function resetAllData(): Promise<void> {
+  await setData('topics', defaultTopicsData);
+  await setData('problems', defaultProblemsData);
+}
+
 // ==================== SUBMISSIONS ====================
 export async function getSubmissions(): Promise<Submission[]> {
   return getData('submissions', []);
@@ -521,6 +531,10 @@ export async function deleteUser(id: string): Promise<boolean> {
 }
 
 function getDefaultTopics(): Topic[] {
+  return defaultTopicsData;
+}
+
+function getDefaultTopics_OLD(): Topic[] {
   return [
     {
       id: 'variables',

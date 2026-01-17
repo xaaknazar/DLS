@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { resetProblems } from '@/lib/db';
+import { resetAllData } from '@/lib/db';
 
 export async function POST() {
   try {
-    await resetProblems();
-    return NextResponse.json({ success: true, message: 'Problems reset successfully' });
+    await resetAllData();
+    return NextResponse.json({ success: true, message: 'Topics and problems reset successfully' });
   } catch (error) {
-    console.error('Reset problems error:', error);
-    return NextResponse.json({ error: 'Failed to reset problems' }, { status: 500 });
+    console.error('Reset data error:', error);
+    return NextResponse.json({ error: 'Failed to reset data' }, { status: 500 });
   }
 }
