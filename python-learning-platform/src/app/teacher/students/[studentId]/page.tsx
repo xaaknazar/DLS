@@ -9,6 +9,7 @@ import Badge from '@/components/ui/Badge';
 import Progress from '@/components/ui/Progress';
 import Button from '@/components/ui/Button';
 import { achievements } from '@/data/achievements';
+import { shopItems, getShopItemById, getRarityColor } from '@/data/shop';
 import { formatDate, getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -27,6 +28,9 @@ import {
   Minus,
   Eye,
   X,
+  ShoppingBag,
+  Gift,
+  Trash2,
 } from 'lucide-react';
 
 export default function StudentDetailPage() {
@@ -45,6 +49,8 @@ export default function StudentDetailPage() {
   const [pointsToAdd, setPointsToAdd] = useState(10);
   const [isUpdating, setIsUpdating] = useState(false);
   const [viewingCode, setViewingCode] = useState<string | null>(null);
+  const [showShopModal, setShowShopModal] = useState(false);
+  const [shopAction, setShopAction] = useState<'give' | 'remove' | null>(null);
 
   useEffect(() => {
     loadStudents();
@@ -87,6 +93,42 @@ export default function StudentDetailPage() {
     }
     setIsUpdating(false);
   };
+
+  const handleShopAction = async (itemId: string, action: 'give' | 'remove') => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/shop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, action }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents(); // Reload to get updated data
+      const item = getShopItemById(itemId);
+      if (action === 'give') {
+        toast.success(`${item?.nameRu} выдан ученику`);
+      } else {
+        toast.success(`${item?.nameRu} убран у ученика`);
+      }
+    } catch {
+      toast.error('Ошибка при управлении предметом');
+    }
+    setIsUpdating(false);
+  };
+
+  // Get student's purchased items
+  const studentPurchasedItems = (student?.purchasedItems || [])
+    .map(id => getShopItemById(id))
+    .filter(Boolean);
+
+  // Get items student doesn't have
+  const availableItems = shopItems.filter(
+    item => !student?.purchasedItems?.includes(item.id)
+  );
 
   const viewingSubmission = viewingCode
     ? studentSubmissions.find((s) => s.id === viewingCode)
@@ -265,6 +307,67 @@ export default function StudentDetailPage() {
           </div>
         </Card>
 
+        {/* Shop Management */}
+        <Card className="p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5" />
+              Управление покупками
+            </h2>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setShopAction('give'); setShowShopModal(true); }}
+                className="border-green-500 text-green-400 hover:bg-green-500/10"
+              >
+                <Gift className="w-4 h-4 mr-2" />
+                Выдать предмет
+              </Button>
+            </div>
+          </div>
+
+          {studentPurchasedItems.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">У ученика нет покупок</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {studentPurchasedItems.map((item) => item && (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                      ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
+                    `}>
+                      {item.image ? (
+                        <img src={item.image} alt={item.nameRu} className="w-8 h-8 object-contain" />
+                      ) : (
+                        <span className="text-lg">{item.emoji}</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium">{item.nameRu}</p>
+                      <p className={`text-xs ${getRarityColor(item.rarity)}`}>
+                        {item.category === 'reward' ? 'Награда' : item.category === 'avatar' ? 'Аватар' : 'Рамка'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleShopAction(item.id, 'remove')}
+                    disabled={isUpdating}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
         {/* Topics Progress */}
         <Card className="p-6 mb-8">
           <h2 className="text-lg font-semibold text-white mb-4">
@@ -395,6 +498,82 @@ export default function StudentDetailPage() {
                   {viewingSubmission.code}
                 </code>
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shop Give Item Modal */}
+      {showShopModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-green-400" />
+                  Выдать предмет
+                </h3>
+                <p className="text-sm text-gray-400">
+                  Выберите предмет для выдачи ученику
+                </p>
+              </div>
+              <button
+                onClick={() => setShowShopModal(false)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(90vh-100px)]">
+              {availableItems.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">
+                  У ученика уже есть все предметы
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {availableItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center overflow-hidden
+                          ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
+                        `}>
+                          {item.image ? (
+                            <img src={item.image} alt={item.nameRu} className="w-10 h-10 object-contain" />
+                          ) : (
+                            <span className="text-2xl">{item.emoji}</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{item.nameRu}</p>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs ${getRarityColor(item.rarity)}`}>
+                              {item.category === 'reward' ? 'Награда' : item.category === 'avatar' ? 'Аватар' : 'Рамка'}
+                            </span>
+                            <span className="text-xs text-yellow-400">
+                              {item.price} ⭐
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleShopAction(item.id, 'give');
+                          setShowShopModal(false);
+                        }}
+                        disabled={isUpdating}
+                        className="border-green-500 text-green-400 hover:bg-green-500/10"
+                      >
+                        <Gift className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
