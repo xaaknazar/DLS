@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
 import { achievements } from '@/data/achievements';
 
+// Session version - increment this to force all users to re-login
+const SESSION_VERSION = 2;
+
 // API helper functions
 async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -80,6 +83,7 @@ export const useStore = create<AppState>((set, get) => ({
       // Store in localStorage for persistence
       localStorage.setItem(`user_${user.id}`, JSON.stringify(user));
       sessionStorage.setItem('user', JSON.stringify(user));
+      sessionStorage.setItem('session_version', String(SESSION_VERSION));
       return true;
     } catch {
       set({ isLoading: false });
@@ -94,6 +98,21 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   refreshUser: async () => {
+    // Check session version - force re-login if outdated
+    const storedVersion = sessionStorage.getItem('session_version');
+    if (storedVersion !== String(SESSION_VERSION)) {
+      // Clear old session data
+      sessionStorage.clear();
+      // Clear all user localStorage entries
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('user_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      set({ user: null, isAuthenticated: false });
+      return;
+    }
+
     const stored = sessionStorage.getItem('user');
     if (stored) {
       try {
