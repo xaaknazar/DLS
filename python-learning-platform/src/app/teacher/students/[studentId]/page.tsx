@@ -494,7 +494,7 @@ export default function StudentDetailPage() {
             Решённые задачи ({student.completedProblems.length})
           </h2>
           <p className="text-gray-400 text-sm mb-4">
-            Если ученик списал - нажмите кнопку отмены, чтобы убрать задачу и снять баллы
+            Нажмите "Код" чтобы посмотреть решение. Если ученик списал - нажмите "Отменить"
           </p>
           {student.completedProblems.length === 0 ? (
             <p className="text-gray-400 text-center py-4">Ученик ещё не решил ни одной задачи</p>
@@ -503,6 +503,11 @@ export default function StudentDetailPage() {
               {student.completedProblems.map((problemId) => {
                 const problem = allProblems.find((p) => p.id === problemId);
                 if (!problem) return null;
+
+                // Find the passed submission for this problem
+                const passedSubmission = studentSubmissions.find(
+                  (s) => s.problemId === problemId && s.status === 'passed'
+                );
 
                 return (
                   <div
@@ -530,16 +535,29 @@ export default function StudentDetailPage() {
                         </div>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRevokeProblem(problemId, problem.points)}
-                      disabled={isUpdating}
-                      className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
-                    >
-                      <RotateCcw className="w-4 h-4 mr-1" />
-                      Отменить
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {passedSubmission && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setViewingCode(passedSubmission.id)}
+                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Код
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRevokeProblem(problemId, problem.points)}
+                        disabled={isUpdating}
+                        className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-1" />
+                        Отменить
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
