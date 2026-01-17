@@ -396,6 +396,109 @@ export const problems: Problem[] = [
       { id: 'tc2', input: '31\n4\n2023', expectedOutput: 'invalid', isHidden: false }
     ]
   },
+  {
+    id: 'cond-11',
+    topicId: 'conditions-8',
+    title: 'Absolute Value',
+    titleRu: 'Модуль числа',
+    description: 'Calculate absolute value without abs()',
+    descriptionRu: 'Вычислите модуль числа без использования abs()',
+    difficulty: 'easy',
+    points: 10,
+    order: 11,
+    grades: [8],
+    starterCode: '# Прочитайте число, выведите его модуль\n# Не используйте функцию abs()\n',
+    solution: 'n = int(input())\nif n < 0:\n    print(-n)\nelse:\n    print(n)',
+    hints: ['Если число отрицательное, умножьте на -1'],
+    testCases: [
+      { id: 'tc1', input: '-5', expectedOutput: '5', isHidden: false },
+      { id: 'tc2', input: '7', expectedOutput: '7', isHidden: false },
+      { id: 'tc3', input: '0', expectedOutput: '0', isHidden: true }
+    ]
+  },
+  {
+    id: 'cond-12',
+    topicId: 'conditions-8',
+    title: 'Time of Day',
+    titleRu: 'Время суток',
+    description: 'Determine time of day by hour',
+    descriptionRu: 'Определите время суток по часу',
+    difficulty: 'easy',
+    points: 15,
+    order: 12,
+    grades: [8],
+    starterCode: '# Прочитайте час (0-23)\n# Выведите: night (0-5), morning (6-11), afternoon (12-17), evening (18-23)\n',
+    solution: 'hour = int(input())\nif hour < 6:\n    print("night")\nelif hour < 12:\n    print("morning")\nelif hour < 18:\n    print("afternoon")\nelse:\n    print("evening")',
+    hints: ['Используйте elif для проверки диапазонов'],
+    testCases: [
+      { id: 'tc1', input: '3', expectedOutput: 'night', isHidden: false },
+      { id: 'tc2', input: '10', expectedOutput: 'morning', isHidden: false },
+      { id: 'tc3', input: '15', expectedOutput: 'afternoon', isHidden: false },
+      { id: 'tc4', input: '21', expectedOutput: 'evening', isHidden: true }
+    ]
+  },
+  {
+    id: 'cond-13',
+    topicId: 'conditions-8',
+    title: 'Simple Calculator',
+    titleRu: 'Простой калькулятор',
+    description: 'Create a simple calculator',
+    descriptionRu: 'Создайте простой калькулятор',
+    difficulty: 'medium',
+    points: 20,
+    order: 13,
+    grades: [8],
+    starterCode: '# Прочитайте: число1, операция (+,-,*,/), число2\n# Выведите результат или "error" при делении на 0\n',
+    solution: 'a = float(input())\nop = input()\nb = float(input())\nif op == "+":\n    print(a + b)\nelif op == "-":\n    print(a - b)\nelif op == "*":\n    print(a * b)\nelif op == "/":\n    if b == 0:\n        print("error")\n    else:\n        print(a / b)',
+    hints: ['Проверьте деление на ноль отдельно'],
+    testCases: [
+      { id: 'tc1', input: '10\n+\n5', expectedOutput: '15.0', isHidden: false },
+      { id: 'tc2', input: '10\n/\n0', expectedOutput: 'error', isHidden: false },
+      { id: 'tc3', input: '8\n*\n3', expectedOutput: '24.0', isHidden: true }
+    ]
+  },
+  {
+    id: 'cond-14',
+    topicId: 'conditions-8',
+    title: 'Divisibility Check',
+    titleRu: 'Проверка делимости',
+    description: 'Check divisibility by 3 and 5',
+    descriptionRu: 'Проверьте делимость на 3 и 5',
+    difficulty: 'medium',
+    points: 20,
+    order: 14,
+    grades: [8],
+    starterCode: '# Прочитайте число\n# Выведите: FizzBuzz (делится на 3 и 5), Fizz (на 3), Buzz (на 5), число\n',
+    solution: 'n = int(input())\nif n % 3 == 0 and n % 5 == 0:\n    print("FizzBuzz")\nelif n % 3 == 0:\n    print("Fizz")\nelif n % 5 == 0:\n    print("Buzz")\nelse:\n    print(n)',
+    hints: ['Сначала проверьте делимость на оба числа'],
+    testCases: [
+      { id: 'tc1', input: '15', expectedOutput: 'FizzBuzz', isHidden: false },
+      { id: 'tc2', input: '9', expectedOutput: 'Fizz', isHidden: false },
+      { id: 'tc3', input: '10', expectedOutput: 'Buzz', isHidden: false },
+      { id: 'tc4', input: '7', expectedOutput: '7', isHidden: true }
+    ]
+  },
+  {
+    id: 'cond-15',
+    topicId: 'conditions-8',
+    title: 'Password Validator',
+    titleRu: 'Проверка пароля',
+    description: 'Validate password strength',
+    descriptionRu: 'Проверьте надёжность пароля',
+    difficulty: 'hard',
+    points: 30,
+    order: 15,
+    grades: [8],
+    starterCode: '# Пароль надёжный если:\n# - длина >= 8 символов\n# - содержит хотя бы одну цифру\n# Выведите "strong" или "weak"\n',
+    solution: 'password = input()\nhas_digit = False\nfor char in password:\n    if char.isdigit():\n        has_digit = True\n        break\nif len(password) >= 8 and has_digit:\n    print("strong")\nelse:\n    print("weak")',
+    hints: ['Используйте isdigit() для проверки цифры', 'len() возвращает длину строки'],
+    testCases: [
+      { id: 'tc1', input: 'password123', expectedOutput: 'strong', isHidden: false },
+      { id: 'tc2', input: 'short1', expectedOutput: 'weak', isHidden: false },
+      { id: 'tc3', input: 'longenough', expectedOutput: 'weak', isHidden: false },
+      { id: 'tc4', input: 'secure99', expectedOutput: 'strong', isHidden: true }
+    ]
+  },
 
   // Цикл for - 8 класс
   {
