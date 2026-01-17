@@ -283,6 +283,23 @@ export async function resetAllData(): Promise<void> {
   await setData('problems', defaultProblemsData);
 }
 
+export async function resetAllStudentProgress(): Promise<number> {
+  const users = await getUsers();
+  let resetCount = 0;
+
+  for (let i = 0; i < users.length; i++) {
+    if (users[i].role === 'student') {
+      const student = users[i] as Student;
+      student.points = 0;
+      student.completedProblems = [];
+      resetCount++;
+    }
+  }
+
+  await setData('users', users);
+  return resetCount;
+}
+
 // ==================== SUBMISSIONS ====================
 export async function getSubmissions(): Promise<Submission[]> {
   return getData('submissions', []);
