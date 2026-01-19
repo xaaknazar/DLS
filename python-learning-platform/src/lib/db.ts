@@ -573,13 +573,18 @@ export async function deleteAnnouncement(id: string): Promise<boolean> {
 
 // ==================== INITIALIZATION ====================
 export async function initializeDatabase(): Promise<void> {
+  const storageMode = redisUrl ? 'Redis' : (isVercelKV ? 'Vercel KV' : 'In-Memory');
+
   if (initialized && !hasRedis) {
     return; // Skip if already initialized (for in-memory mode)
   }
 
   // Check if users exist
   const users = await getUsers();
+  console.log(`[DB Init] Storage: ${storageMode}, Users found: ${users.length}`);
+
   if (users.length === 0) {
+    console.log('[DB Init] No users found, creating default data...');
     // Create default teacher
     const teacher: Teacher = {
       id: 'teacher-1',

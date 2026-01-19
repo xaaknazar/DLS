@@ -26,25 +26,64 @@ export default function ShopPage() {
   const { user } = useStore();
   const [selectedCategory, setSelectedCategory] = useState<Category>('all');
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [syncedStudent, setSyncedStudent] = useState<Student | null>(null);
 
-  const student = user as Student;
+  const initialStudent = user as Student;
 
   // Sync user data from server on mount to ensure shopPoints is up to date
   useEffect(() => {
-    if (student?.id) {
-      fetch(`/api/students/${student.id}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data) {
-            useStore.setState({ user: data });
-            sessionStorage.setItem('user', JSON.stringify(data));
-          }
-        })
-        .catch(() => {}); // Silently fail
-    }
-  }, [student?.id]);
+    const syncData = async () => {
+      if (!initialStudent?.id) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/students/${initialStudent.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          console.log('[Shop] Synced student data:', {
+            points: data.points,
+            shopPoints: data.shopPoints,
+            completedProblems: data.completedProblems?.length || 0
+          });
+          useStore.setState({ user: data });
+          sessionStorage.setItem('user', JSON.stringify(data));
+          setSyncedStudent(data);
+        } else {
+          // Fallback to store data
+          setSyncedStudent(initialStudent);
+        }
+      } catch (error) {
+        console.error('[Shop] Failed to sync data:', error);
+        // Fallback to store data
+        setSyncedStudent(initialStudent);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    syncData();
+  }, [initialStudent?.id]);
+
+  // Use synced data or fallback to store data
+  const student = syncedStudent || initialStudent;
 
   if (!student) return null;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <Header />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-400 border-t-transparent"></div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const filteredItems = selectedCategory === 'all'
     ? shopItems

@@ -16,6 +16,11 @@ export async function GET(
     }
 
     const { password, ...safeUser } = user;
+
+    // Debug logging
+    const student = safeUser as any;
+    console.log(`[API] GET student ${id}: points=${student.points}, shopPoints=${student.shopPoints}`);
+
     return NextResponse.json(safeUser);
   } catch (error) {
     console.error('Get student error:', error);
