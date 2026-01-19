@@ -177,6 +177,19 @@ export async function updateStudentPoints(id: string, pointsDelta: number): Prom
   return student;
 }
 
+// Обновление ТОЛЬКО магазинных баллов (для компенсации подарков)
+export async function updateStudentShopPoints(id: string, shopPointsDelta: number): Promise<Student | null> {
+  const users = await getUsers();
+  const index = users.findIndex(u => u.id === id);
+  if (index === -1 || users[index].role !== 'student') return null;
+  const student = users[index] as Student;
+  const oldShopPoints = student.shopPoints ?? student.points ?? 0;
+  student.shopPoints = Math.max(0, oldShopPoints + shopPointsDelta);
+  console.log(`[DB] Updated shopPoints for ${student.name}: ${oldShopPoints} -> ${student.shopPoints} (delta: ${shopPointsDelta > 0 ? '+' : ''}${shopPointsDelta})`);
+  await setData('users', users);
+  return student;
+}
+
 export async function markProblemCompleted(studentId: string, problemId: string, points: number): Promise<Student | null> {
   const users = await getUsers();
   const index = users.findIndex(u => u.id === studentId);

@@ -34,6 +34,7 @@ import {
   Ban,
   RotateCcw,
   Award,
+  Coins,
 } from 'lucide-react';
 
 export default function StudentDetailPage() {
@@ -52,6 +53,7 @@ export default function StudentDetailPage() {
   } = useStore();
 
   const [pointsToAdd, setPointsToAdd] = useState(10);
+  const [shopPointsToAdd, setShopPointsToAdd] = useState(100);
   const [isUpdating, setIsUpdating] = useState(false);
   const [viewingCode, setViewingCode] = useState<string | null>(null);
   const [showShopModal, setShowShopModal] = useState(false);
@@ -97,6 +99,40 @@ export default function StudentDetailPage() {
       toast.success(`Снято ${pointsToAdd} баллов`);
     } catch {
       toast.error('Ошибка при снятии баллов');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleAddShopPoints = async () => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/shop-points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta: shopPointsToAdd }),
+      });
+      if (!response.ok) throw new Error('Failed');
+      await loadStudents();
+      toast.success(`Добавлено ${shopPointsToAdd} магазинных баллов`);
+    } catch {
+      toast.error('Ошибка при добавлении магазинных баллов');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleDeductShopPoints = async () => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/shop-points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta: -shopPointsToAdd }),
+      });
+      if (!response.ok) throw new Error('Failed');
+      await loadStudents();
+      toast.success(`Снято ${shopPointsToAdd} магазинных баллов`);
+    } catch {
+      toast.error('Ошибка при снятии магазинных баллов');
     }
     setIsUpdating(false);
   };
@@ -385,6 +421,47 @@ export default function StudentDetailPage() {
             >
               <Minus className="w-4 h-4 mr-2" />
               Снять баллы
+            </Button>
+          </div>
+        </Card>
+
+        {/* Shop Points Management */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+            <Coins className="w-5 h-5 text-yellow-400" />
+            Магазинные баллы
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Добавляйте магазинные баллы отдельно (не влияет на рейтинг). Текущий баланс: <span className="text-yellow-400 font-bold">{student.shopPoints ?? student.points ?? 0}</span>
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">Количество:</span>
+              <input
+                type="number"
+                value={shopPointsToAdd}
+                onChange={(e) => setShopPointsToAdd(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-24 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-center"
+                min="1"
+              />
+            </div>
+            <Button
+              onClick={handleAddShopPoints}
+              disabled={isUpdating}
+              variant="outline"
+              className="border-yellow-500 text-yellow-400 hover:bg-yellow-500/10"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Добавить
+            </Button>
+            <Button
+              onClick={handleDeductShopPoints}
+              disabled={isUpdating}
+              variant="outline"
+              className="border-orange-500 text-orange-400 hover:bg-orange-500/10"
+            >
+              <Minus className="w-4 h-4 mr-2" />
+              Снять
             </Button>
           </div>
         </Card>
