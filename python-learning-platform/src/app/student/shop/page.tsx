@@ -17,6 +17,10 @@ import {
   Zap,
   Gift,
   Flame,
+  History,
+  ChevronDown,
+  ChevronUp,
+  Calculator,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,6 +32,9 @@ export default function ShopPage() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [syncedStudent, setSyncedStudent] = useState<Student | null>(null);
+  const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
+  const [pointsBreakdown, setPointsBreakdown] = useState<any>(null);
+  const [loadingBreakdown, setLoadingBreakdown] = useState(false);
 
   const initialStudent = user as Student;
 
@@ -66,6 +73,25 @@ export default function ShopPage() {
 
     syncData();
   }, [initialStudent?.id]);
+
+  // Fetch points breakdown
+  const fetchPointsBreakdown = async () => {
+    if (!initialStudent?.id) return;
+
+    setLoadingBreakdown(true);
+    try {
+      const res = await fetch(`/api/students/${initialStudent.id}/points-breakdown`);
+      if (res.ok) {
+        const data = await res.json();
+        setPointsBreakdown(data);
+        console.log('[Shop] Points breakdown fetched - check server logs for details');
+      }
+    } catch (error) {
+      console.error('[Shop] Failed to fetch points breakdown:', error);
+    } finally {
+      setLoadingBreakdown(false);
+    }
+  };
 
   // Use synced data or fallback to store data
   const student = syncedStudent || initialStudent;
@@ -197,6 +223,13 @@ export default function ShopPage() {
   const equippedAvatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
   const equippedFrameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
 
+  // Get purchase history
+  const purchaseHistory = (student.purchasedItems || [])
+    .map(itemId => getShopItemById(itemId))
+    .filter((item): item is ShopItem => item !== undefined);
+
+  const totalSpent = purchaseHistory.reduce((sum, item) => sum + item.price, 0);
+
   return (
     <div className="min-h-screen">
       <Header title="Магазин" subtitle="Обменяй баллы на крутые аватары и награды" />
@@ -254,6 +287,125 @@ export default function ShopPage() {
             </div>
           </Card>
         </div>
+
+        {/* Purchase History & Points Breakdown */}
+        <Card className="p-4 mb-8">
+          <button
+            onClick={() => {
+              setShowPurchaseHistory(!showPurchaseHistory);
+              if (!showPurchaseHistory && !pointsBreakdown) {
+                fetchPointsBreakdown();
+              }
+            }}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <History className="w-5 h-5 text-purple-400" />
+              <span className="text-white font-medium">История покупок и баллы</span>
+              <span className="text-gray-500 text-sm">({purchaseHistory.length} покупок)</span>
+            </div>
+            {showPurchaseHistory ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+
+          {showPurchaseHistory && (
+            <div className="mt-4 pt-4 border-t border-gray-700">
+              {/* Points Breakdown Summary */}
+              {loadingBreakdown ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-400 border-t-transparent"></div>
+                </div>
+              ) : pointsBreakdown ? (
+                <div className="mb-6 p-4 bg-gray-800/50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calculator className="w-5 h-5 text-purple-400" />
+                    <span className="text-white font-medium">Разбивка баллов</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-400">За задачи</p>
+                      <p className="text-green-400 font-bold">+{pointsBreakdown.summary.problemPoints}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">За достижения</p>
+                      <p className="text-blue-400 font-bold">+{pointsBreakdown.summary.achievementPoints}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Потрачено</p>
+                      <p className="text-red-400 font-bold">-{pointsBreakdown.summary.spentPoints}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Остаток</p>
+                      <p className="text-yellow-400 font-bold">= {pointsBreakdown.summary.shopBalance}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
+                    <p>Формула: Баланс = (Задачи + Достижения) - Потрачено</p>
+                    <p>= ({pointsBreakdown.summary.problemPoints} + {pointsBreakdown.summary.achievementPoints}) - {pointsBreakdown.summary.spentPoints} = {pointsBreakdown.summary.shopBalance}</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={fetchPointsBreakdown}
+                  className="mb-4 px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors"
+                >
+                  <Calculator className="w-4 h-4 inline mr-2" />
+                  Загрузить детальную разбивку
+                </button>
+              )}
+
+              {/* Purchase History List */}
+              {purchaseHistory.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Пока нет покупок</p>
+              ) : (
+                <>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {purchaseHistory.map((item, index) => (
+                      <div
+                        key={`${item.id}-${index}`}
+                        className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                              ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
+                            `}
+                          >
+                            {item.image ? (
+                              <img src={item.image} alt={item.nameRu} className="w-8 h-8 object-contain" />
+                            ) : (
+                              <span className="text-lg">{item.emoji || '?'}</span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-white text-sm font-medium">{item.nameRu}</p>
+                            <p className={`text-xs ${getRarityColor(item.rarity)}`}>
+                              {getRarityName(item.rarity)} • {item.category === 'avatar' ? 'Аватар' : item.category === 'frame' ? 'Рамка' : 'Награда'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-red-400">
+                          <Star className="w-4 h-4" />
+                          <span className="font-medium">-{item.price}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center">
+                    <span className="text-gray-400">Всего потрачено:</span>
+                    <div className="flex items-center gap-1 text-red-400 font-bold">
+                      <Star className="w-5 h-5" />
+                      <span>{totalSpent}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </Card>
 
         {/* Category Filter */}
         <div className="flex flex-wrap items-center gap-2 mb-6">
