@@ -317,6 +317,8 @@ export async function recalculateAllStudentPoints(): Promise<{ recalculatedCount
   const problems = await getProblems();
   const topics = await getTopics();
 
+  console.log(`[Recalc] Starting recalculation. Total users: ${users.length}, Problems: ${problems.length}`);
+
   const details: { id: string; name: string; oldPoints: number; newPoints: number; oldShopPoints: number; newShopPoints: number }[] = [];
   let recalculatedCount = 0;
 
@@ -325,7 +327,7 @@ export async function recalculateAllStudentPoints(): Promise<{ recalculatedCount
 
     const student = users[i] as Student;
     const oldPoints = student.points || 0;
-    const oldShopPoints = student.shopPoints || 0;
+    const oldShopPoints = student.shopPoints ?? student.points ?? 0; // Fallback to points if shopPoints undefined
 
     // 1. Подсчёт баллов за решённые задачи
     let problemPoints = 0;
@@ -388,7 +390,8 @@ export async function recalculateAllStudentPoints(): Promise<{ recalculatedCount
 
     // 4. Подсчёт потраченных баллов в магазине
     let spentPoints = 0;
-    for (const itemId of student.purchasedItems || []) {
+    const purchasedItems = student.purchasedItems || [];
+    for (const itemId of purchasedItems) {
       const item = shopItems.find(i => i.id === itemId);
       if (item) {
         spentPoints += item.price;
@@ -397,6 +400,11 @@ export async function recalculateAllStudentPoints(): Promise<{ recalculatedCount
 
     // 5. Баллы магазина = рейтинговые баллы - потраченные
     const newShopPoints = Math.max(0, newPoints - spentPoints);
+
+    // Debug log for students with significant changes
+    if (newPoints > 0 || oldPoints > 0) {
+      console.log(`[Recalc] ${student.name}: problems=${(student.completedProblems || []).length}, problemPts=${problemPoints}, achPts=${achievementPoints}, spent=${spentPoints}, items=${purchasedItems.length}, newPts=${newPoints}, newShopPts=${newShopPoints}`);
+    }
 
     // Обновляем студента
     student.points = newPoints;
@@ -415,7 +423,9 @@ export async function recalculateAllStudentPoints(): Promise<{ recalculatedCount
     recalculatedCount++;
   }
 
+  console.log(`[Recalc] Saving ${recalculatedCount} students to database...`);
   await setData('users', users);
+  console.log('[Recalc] Save complete');
   return { recalculatedCount, details };
 }
 
@@ -582,6 +592,29 @@ export async function initializeDatabase(): Promise<void> {
   // Check if users exist
   const users = await getUsers();
   console.log(`[DB Init] Storage: ${storageMode}, Users found: ${users.length}`);
+
+  // Migrate old users: ensure shopPoints is set
+  let needsSave = false;
+  for (const user of users) {
+    if (user.role === 'student') {
+      const student = user as Student;
+      if (student.shopPoints === undefined || student.shopPoints === null) {
+        // Calculate shopPoints: points minus spent on purchases
+        let spentPoints = 0;
+        for (const itemId of student.purchasedItems || []) {
+          const item = shopItems.find(i => i.id === itemId);
+          if (item) spentPoints += item.price;
+        }
+        student.shopPoints = Math.max(0, (student.points || 0) - spentPoints);
+        console.log(`[DB Init] Migrated shopPoints for ${student.name}: ${student.shopPoints}`);
+        needsSave = true;
+      }
+    }
+  }
+  if (needsSave) {
+    await setData('users', users);
+    console.log('[DB Init] Saved migrated users');
+  }
 
   if (users.length === 0) {
     console.log('[DB Init] No users found, creating default data...');
