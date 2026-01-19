@@ -15,6 +15,8 @@ import {
   X,
   Search,
   Users,
+  Calculator,
+  ShoppingBag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -25,6 +27,9 @@ export default function ManageStudentsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [showRecalculateModal, setShowRecalculateModal] = useState(false);
+  const [recalculateResult, setRecalculateResult] = useState<any>(null);
 
   // Form state for new/edit student
   const [formData, setFormData] = useState({
@@ -141,6 +146,28 @@ export default function ManageStudentsPage() {
     setFormData({ name: '', email: '', password: '', grade: 7 });
   };
 
+  const handleRecalculatePoints = async () => {
+    setRecalculating(true);
+    try {
+      const response = await fetch('/api/admin/recalculate-points', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to recalculate points');
+      }
+
+      const result = await response.json();
+      setRecalculateResult(result);
+      toast.success(`Баллы пересчитаны у ${result.recalculatedCount} учеников`);
+      loadStudents();
+    } catch (error) {
+      toast.error('Ошибка пересчёта баллов');
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen">
       <Header title="Управление учениками" subtitle="Добавление, редактирование и удаление учеников" />
@@ -151,6 +178,16 @@ export default function ManageStudentsPage() {
           <Button onClick={() => setShowAddModal(true)}>
             <UserPlus className="w-4 h-4 mr-2" />
             Добавить ученика
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setShowRecalculateModal(true)}
+            disabled={recalculating}
+            className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
+          >
+            <Calculator className="w-4 h-4 mr-2" />
+            {recalculating ? 'Пересчёт...' : 'Пересчитать баллы'}
           </Button>
 
           {/* Search */}
@@ -210,7 +247,8 @@ export default function ManageStudentsPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Имя</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Email</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Класс</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Баллы</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Рейтинг</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Магазин</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Задачи</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-gray-400">Действия</th>
               </tr>
@@ -248,6 +286,7 @@ export default function ManageStudentsPage() {
                         </select>
                       </td>
                       <td className="px-4 py-3 text-gray-400">{student.points}</td>
+                      <td className="px-4 py-3 text-gray-400">{student.shopPoints ?? '-'}</td>
                       <td className="px-4 py-3 text-gray-400">{student.completedProblems.length}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -272,7 +311,8 @@ export default function ManageStudentsPage() {
                       <td className="px-4 py-3 text-white font-medium">{student.name}</td>
                       <td className="px-4 py-3 text-gray-400">{student.email}</td>
                       <td className="px-4 py-3 text-gray-400">{student.grade}</td>
-                      <td className="px-4 py-3 text-yellow-400 font-medium">{student.points}</td>
+                      <td className="px-4 py-3 text-blue-400 font-medium">{student.points}</td>
+                      <td className="px-4 py-3 text-yellow-400 font-medium">{student.shopPoints ?? '-'}</td>
                       <td className="px-4 py-3 text-green-400">{student.completedProblems.length}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -378,6 +418,119 @@ export default function ManageStudentsPage() {
                 {loading ? 'Добавление...' : 'Добавить'}
               </Button>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Recalculate Points Modal */}
+      {showRecalculateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-2xl p-6 max-h-[80vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Calculator className="w-5 h-5 text-yellow-400" />
+              Пересчёт баллов учеников
+            </h2>
+
+            {!recalculateResult ? (
+              <>
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-4">
+                  <p className="text-yellow-400 text-sm">
+                    <strong>Что делает пересчёт:</strong>
+                  </p>
+                  <ul className="text-gray-300 text-sm mt-2 space-y-1 list-disc list-inside">
+                    <li>Пересчитывает рейтинговые баллы на основе решённых задач</li>
+                    <li>Пересчитывает баллы за достижения</li>
+                    <li>Вычитает потраченные баллы на покупки в магазине</li>
+                    <li>Обновляет баллы магазина (shopPoints)</li>
+                  </ul>
+                </div>
+
+                <p className="text-gray-400 mb-6">
+                  Используйте эту функцию если баллы учеников не соответствуют их достижениям.
+                </p>
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowRecalculateModal(false);
+                      setRecalculateResult(null);
+                    }}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-600"
+                    onClick={handleRecalculatePoints}
+                    disabled={recalculating}
+                  >
+                    {recalculating ? 'Пересчёт...' : 'Пересчитать'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+                  <p className="text-green-400 font-medium">
+                    Пересчитано {recalculateResult.recalculatedCount} учеников
+                  </p>
+                </div>
+
+                {recalculateResult.details && recalculateResult.details.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-gray-400 text-sm mb-2">Изменения:</p>
+                    <div className="max-h-60 overflow-y-auto bg-gray-800 rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-700 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-gray-400">Имя</th>
+                            <th className="px-3 py-2 text-right text-gray-400">Рейтинг</th>
+                            <th className="px-3 py-2 text-right text-gray-400">Магазин</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recalculateResult.details
+                            .filter((d: any) => d.oldPoints !== d.newPoints || d.oldShopPoints !== d.newShopPoints)
+                            .map((detail: any) => (
+                              <tr key={detail.id} className="border-t border-gray-700">
+                                <td className="px-3 py-2 text-white">{detail.name}</td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className="text-gray-500">{detail.oldPoints}</span>
+                                  <span className="text-gray-600 mx-1">→</span>
+                                  <span className={detail.newPoints > detail.oldPoints ? 'text-green-400' : detail.newPoints < detail.oldPoints ? 'text-red-400' : 'text-gray-400'}>
+                                    {detail.newPoints}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className="text-gray-500">{detail.oldShopPoints ?? 0}</span>
+                                  <span className="text-gray-600 mx-1">→</span>
+                                  <span className={detail.newShopPoints > (detail.oldShopPoints || 0) ? 'text-green-400' : detail.newShopPoints < (detail.oldShopPoints || 0) ? 'text-red-400' : 'text-gray-400'}>
+                                    {detail.newShopPoints}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                      {recalculateResult.details.filter((d: any) => d.oldPoints !== d.newPoints || d.oldShopPoints !== d.newShopPoints).length === 0 && (
+                        <p className="text-gray-500 text-center py-4">Баллы уже корректны</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setShowRecalculateModal(false);
+                    setRecalculateResult(null);
+                  }}
+                >
+                  Закрыть
+                </Button>
+              </>
+            )}
           </Card>
         </div>
       )}

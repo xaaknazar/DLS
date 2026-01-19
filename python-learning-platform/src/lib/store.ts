@@ -321,10 +321,16 @@ export const useStore = create<AppState>((set, get) => ({
           }
         }
 
+        // Calculate new shop points (add same amount as rating points)
+        const totalNewPoints = newPoints + bonusPoints;
+        const pointsEarned = totalNewPoints - user.points;
+        const newShopPoints = (user.shopPoints || 0) + (wasNewProblem ? pointsEarned : 0);
+
         const updatedUser = {
           ...user,
           completedProblems: newCompletedProblems,
-          points: newPoints + bonusPoints,
+          points: totalNewPoints,
+          shopPoints: newShopPoints,
           achievements: currentAchievements,
         };
         set({ user: updatedUser as Student });
@@ -336,7 +342,8 @@ export const useStore = create<AppState>((set, get) => ({
           await apiCall(`/api/students/${user.id}`, {
             method: 'PATCH',
             body: JSON.stringify({
-              points: newPoints + bonusPoints,
+              points: totalNewPoints,
+              shopPoints: newShopPoints,
               completedProblems: newCompletedProblems,
               achievements: currentAchievements,
             }),

@@ -44,8 +44,11 @@ export default function ShopPage() {
     return a.price - b.price;
   });
 
+  // Используем shopPoints для покупок (если есть), иначе points для обратной совместимости
+  const shopBalance = student.shopPoints ?? student.points ?? 0;
+
   const handlePurchase = async (item: ShopItem) => {
-    if (student.points < item.price) {
+    if (shopBalance < item.price) {
       toast.error('Недостаточно баллов!');
       return;
     }
@@ -183,11 +186,18 @@ export default function ShopPage() {
           {/* Balance */}
           <Card className="p-6 bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-500/30">
             <div className="flex items-center gap-3 mb-2">
-              <Star className="w-6 h-6 text-yellow-400" />
-              <span className="text-gray-400">Баланс</span>
+              <ShoppingBag className="w-6 h-6 text-yellow-400" />
+              <span className="text-gray-400">Баланс магазина</span>
             </div>
-            <p className="text-4xl font-bold text-yellow-400">{student.points}</p>
-            <p className="text-gray-500 text-sm mt-1">баллов</p>
+            <p className="text-4xl font-bold text-yellow-400">{shopBalance}</p>
+            <p className="text-gray-500 text-sm mt-1">баллов для покупок</p>
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <div className="flex items-center gap-2 text-sm">
+                <Star className="w-4 h-4 text-blue-400" />
+                <span className="text-gray-400">Рейтинг:</span>
+                <span className="text-blue-400 font-medium">{student.points}</span>
+              </div>
+            </div>
           </Card>
         </div>
 
@@ -238,7 +248,7 @@ export default function ShopPage() {
           {sortedItems.map((item) => {
             const owned = isOwned(item.id);
             const equipped = isEquipped(item);
-            const canAfford = student.points >= item.price;
+            const canAfford = shopBalance >= item.price;
             const isReward = item.category === 'reward';
 
             return (

@@ -16,7 +16,8 @@ export interface Student extends User {
   role: 'student';
   grade: number;
   completedProblems: string[];
-  points: number;
+  points: number;           // Рейтинговые баллы (не уменьшаются при покупках)
+  shopPoints: number;       // Баллы магазина (тратятся при покупках)
   achievements: string[];
   streakDays: number;
   lastActiveAt: Date;

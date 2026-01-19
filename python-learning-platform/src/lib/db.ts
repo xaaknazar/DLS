@@ -2,6 +2,8 @@ import { Student, Teacher, Topic, Problem, Submission, Message, Announcement } f
 import Redis from 'ioredis';
 import { problems as defaultProblemsData } from '@/data/problems';
 import { topics as defaultTopicsData } from '@/data/topics';
+import { achievements } from '@/data/achievements';
+import { shopItems } from '@/data/shop';
 
 // Check for Redis connection
 const redisUrl = typeof process !== 'undefined' ? process.env.REDIS_URL : null;
@@ -167,7 +169,10 @@ export async function updateStudentPoints(id: string, pointsDelta: number): Prom
   const index = users.findIndex(u => u.id === id);
   if (index === -1 || users[index].role !== 'student') return null;
   const student = users[index] as Student;
+  // При начислении баллов - добавляем в оба поля
+  // При отнимании (ручное) - отнимаем из обоих
   student.points = Math.max(0, student.points + pointsDelta);
+  student.shopPoints = Math.max(0, (student.shopPoints || 0) + pointsDelta);
   await setData('users', users);
   return student;
 }
@@ -181,6 +186,7 @@ export async function markProblemCompleted(studentId: string, problemId: string,
   if (!student.completedProblems.includes(problemId)) {
     student.completedProblems.push(problemId);
     student.points += points;
+    student.shopPoints = (student.shopPoints || 0) + points;
   }
   student.lastActiveAt = new Date();
 
@@ -294,13 +300,123 @@ export async function resetAllStudentProgress(): Promise<number> {
     if (users[i].role === 'student') {
       const student = users[i] as Student;
       student.points = 0;
+      student.shopPoints = 0;
       student.completedProblems = [];
+      student.achievements = [];
       resetCount++;
     }
   }
 
   await setData('users', users);
   return resetCount;
+}
+
+// Пересчёт баллов всех студентов на основе их решений и достижений
+export async function recalculateAllStudentPoints(): Promise<{ recalculatedCount: number; details: { id: string; name: string; oldPoints: number; newPoints: number; oldShopPoints: number; newShopPoints: number }[] }> {
+  const users = await getUsers();
+  const problems = await getProblems();
+  const topics = await getTopics();
+
+  const details: { id: string; name: string; oldPoints: number; newPoints: number; oldShopPoints: number; newShopPoints: number }[] = [];
+  let recalculatedCount = 0;
+
+  for (let i = 0; i < users.length; i++) {
+    if (users[i].role !== 'student') continue;
+
+    const student = users[i] as Student;
+    const oldPoints = student.points || 0;
+    const oldShopPoints = student.shopPoints || 0;
+
+    // 1. Подсчёт баллов за решённые задачи
+    let problemPoints = 0;
+    for (const problemId of student.completedProblems || []) {
+      const problem = problems.find(p => p.id === problemId);
+      if (problem) {
+        problemPoints += problem.points;
+      }
+    }
+
+    // 2. Подсчёт баллов за достижения
+    // Сначала пересчитаем какие достижения студент должен иметь
+    const earnedAchievements: string[] = [];
+    let achievementPoints = 0;
+
+    for (const achievement of achievements) {
+      let earned = false;
+
+      switch (achievement.requirement.type) {
+        case 'problems_solved':
+          earned = (student.completedProblems || []).length >= achievement.requirement.value;
+          break;
+        case 'points_earned':
+          // Для points_earned используем баллы за задачи (без бонусов за достижения)
+          earned = problemPoints >= achievement.requirement.value;
+          break;
+        case 'streak':
+          earned = (student.streakDays || 0) >= achievement.requirement.value;
+          break;
+        case 'difficulty':
+          if (achievement.requirement.difficulty) {
+            const hardProblems = problems.filter(p =>
+              p.difficulty === achievement.requirement.difficulty &&
+              (student.completedProblems || []).includes(p.id)
+            );
+            earned = hardProblems.length >= achievement.requirement.value;
+          }
+          break;
+        case 'topic_completed':
+          // Проверяем завершена ли хоть одна тема полностью
+          for (const topic of topics) {
+            const topicProblems = problems.filter(p => p.topicId === topic.id);
+            const completedInTopic = topicProblems.filter(p => (student.completedProblems || []).includes(p.id));
+            if (topicProblems.length > 0 && completedInTopic.length === topicProblems.length) {
+              earned = true;
+              break;
+            }
+          }
+          break;
+      }
+
+      if (earned) {
+        earnedAchievements.push(achievement.id);
+        achievementPoints += achievement.points;
+      }
+    }
+
+    // 3. Общие рейтинговые баллы
+    const newPoints = problemPoints + achievementPoints;
+
+    // 4. Подсчёт потраченных баллов в магазине
+    let spentPoints = 0;
+    for (const itemId of student.purchasedItems || []) {
+      const item = shopItems.find(i => i.id === itemId);
+      if (item) {
+        spentPoints += item.price;
+      }
+    }
+
+    // 5. Баллы магазина = рейтинговые баллы - потраченные
+    const newShopPoints = Math.max(0, newPoints - spentPoints);
+
+    // Обновляем студента
+    student.points = newPoints;
+    student.shopPoints = newShopPoints;
+    student.achievements = earnedAchievements;
+
+    details.push({
+      id: student.id,
+      name: student.name,
+      oldPoints,
+      newPoints,
+      oldShopPoints,
+      newShopPoints,
+    });
+
+    recalculatedCount++;
+  }
+
+  await setData('users', users);
+  return { recalculatedCount, details };
 }
 
 // ==================== SUBMISSIONS ====================
@@ -558,6 +674,7 @@ export async function initializeDatabase(): Promise<void> {
       grade: s.grade,
       completedProblems: [],
       points: 0,
+      shopPoints: 0,
       achievements: [],
       streakDays: 0,
       lastActiveAt: new Date(),

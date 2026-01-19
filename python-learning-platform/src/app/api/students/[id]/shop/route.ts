@@ -36,19 +36,20 @@ export async function POST(
         return NextResponse.json({ error: 'Already owned' }, { status: 400 });
       }
 
-      // Check if can afford
-      if (student.points < item.price) {
+      // Check if can afford - use shopPoints for purchases (не рейтинговые баллы!)
+      const currentShopPoints = student.shopPoints ?? student.points ?? 0;
+      if (currentShopPoints < item.price) {
         return NextResponse.json({ error: 'Not enough points' }, { status: 400 });
       }
 
-      // Purchase the item - deduct points and add to purchased
-      const newPoints = student.points - item.price;
+      // Purchase the item - deduct ONLY shopPoints (not rating points!)
+      const newShopPoints = currentShopPoints - item.price;
       const newPurchasedItems = [...purchasedItems, itemId];
 
-      console.log(`[Shop] Student ${student.name} buying ${item.nameRu} for ${item.price} points. Balance: ${student.points} -> ${newPoints}`);
+      console.log(`[Shop] Student ${student.name} buying ${item.nameRu} for ${item.price} points. Shop Balance: ${currentShopPoints} -> ${newShopPoints}. Rating points unchanged: ${student.points}`);
 
       const updatedStudent = await updateUser(id, {
-        points: newPoints,
+        shopPoints: newShopPoints,
         purchasedItems: newPurchasedItems,
       });
 
