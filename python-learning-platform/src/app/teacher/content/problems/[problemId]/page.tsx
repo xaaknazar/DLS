@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
-import { TestCase, Difficulty, Problem } from '@/types';
+import { TestCase, Difficulty, Problem, Student } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { ArrowLeft, Save, Plus, Trash2, Loader2 } from 'lucide-react';
+import Badge from '@/components/ui/Badge';
+import { ArrowLeft, Save, Plus, Trash2, Loader2, Users, RotateCcw, CheckCircle, Eye, X } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -19,9 +20,11 @@ export default function EditProblemPage() {
   const problemId = decodeURIComponent(params.problemId as string);
   const isNew = problemId === 'new';
 
-  const { topics, problems, updateProblem, createProblem, loadProblems, loadTopics } = useStore();
+  const { topics, problems, updateProblem, createProblem, loadProblems, loadTopics, students, loadStudents, loadSubmissions, submissions } = useStore();
   const [existingProblem, setExistingProblem] = useState<Problem | null>(null);
   const [isLoading, setIsLoading] = useState(!isNew);
+  const [isRevoking, setIsRevoking] = useState(false);
+  const [viewingCode, setViewingCode] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     id: '',
@@ -86,6 +89,14 @@ export default function EditProblemPage() {
 
     fetchProblem();
   }, [isNew, problemId, problems, topics.length, loadProblems, loadTopics]);
+
+  // Load students and submissions for existing problems
+  useEffect(() => {
+    if (!isNew) {
+      loadStudents();
+      loadSubmissions(undefined, problemId);
+    }
+  }, [isNew, problemId, loadStudents, loadSubmissions]);
 
   // Update form when problem is loaded
   useEffect(() => {
@@ -169,6 +180,55 @@ export default function EditProblemPage() {
     newTestCases[index] = { ...newTestCases[index], [field]: value };
     setFormData({ ...formData, testCases: newTestCases });
   };
+
+  // Get students who solved this problem
+  const solvedByStudents = !isNew
+    ? students.filter((s) => s.completedProblems?.includes(problemId))
+    : [];
+
+  // Get submissions for this problem
+  const problemSubmissions = submissions.filter((s) => s.problemId === problemId);
+
+  // Get submission code for a student
+  const getStudentSubmission = (studentId: string) => {
+    return problemSubmissions.find(
+      (s) => s.studentId === studentId && s.status === 'passed'
+    );
+  };
+
+  // Handle revoking a problem solution
+  const handleRevokeProblem = async (studentId: string, studentName: string) => {
+    if (!confirm(`Обнулить решение для "${studentName}"? Это уберёт задачу из решённых и снимет ${existingProblem?.points || 0} баллов.`)) {
+      return;
+    }
+
+    setIsRevoking(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/revoke-problem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemId, points: existingProblem?.points || 0 }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents();
+      toast.success(`Решение обнулено для ${studentName}`);
+    } catch {
+      toast.error('Ошибка при обнулении решения');
+    }
+    setIsRevoking(false);
+  };
+
+  // Get viewing submission data
+  const viewingSubmission = viewingCode
+    ? problemSubmissions.find((s) => s.id === viewingCode)
+    : null;
+  const viewingStudent = viewingSubmission
+    ? students.find((s) => s.id === viewingSubmission.studentId)
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -566,7 +626,106 @@ export default function EditProblemPage() {
             </Button>
           </div>
         </form>
+
+        {/* Solved By Students Section - Only for existing problems */}
+        {!isNew && (
+          <Card className="p-6 mt-6 max-w-4xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-green-400" />
+                Решили задачу ({solvedByStudents.length})
+              </h2>
+            </div>
+
+            {solvedByStudents.length === 0 ? (
+              <p className="text-gray-400 text-center py-4">Пока никто не решил эту задачу</p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {solvedByStudents.map((student) => {
+                  const submission = getStudentSubmission(student.id);
+
+                  return (
+                    <div
+                      key={student.id}
+                      className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800/70 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                        <div>
+                          <p className="text-white font-medium">{student.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge size="sm" className="bg-blue-500/20 text-blue-400">
+                              {student.grade} класс
+                            </Badge>
+                            <span className="text-gray-500 text-xs">
+                              {student.email}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {submission && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewingCode(submission.id)}
+                            className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Код
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRevokeProblem(student.id, student.name)}
+                          disabled={isRevoking}
+                          className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-1" />
+                          Обнулить
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
       </div>
+
+      {/* Code Viewer Modal */}
+      {viewingCode && viewingSubmission && viewingStudent && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">
+                  Код {viewingStudent.name}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  {viewingSubmission.status === 'passed' ? 'Решено верно' : 'Не решено'} •{' '}
+                  {viewingSubmission.passedTests}/{viewingSubmission.totalTests} тестов
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingCode(null)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(90vh-100px)]">
+              <pre className="bg-gray-800 p-4 rounded-xl overflow-x-auto">
+                <code className="text-sm text-gray-100 font-mono whitespace-pre">
+                  {viewingSubmission.code}
+                </code>
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

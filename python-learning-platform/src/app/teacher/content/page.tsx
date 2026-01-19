@@ -17,6 +17,7 @@ import {
   ChevronRight,
   FileText,
   FlaskConical,
+  Filter,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,9 +25,21 @@ export default function ContentManagementPage() {
   const { topics, problems, deleteTopic, deleteProblem } = useStore();
   const [selectedGrade, setSelectedGrade] = useState(7);
   const [activeTab, setActiveTab] = useState<'topics' | 'problems'>('topics');
+  const [selectedTopicId, setSelectedTopicId] = useState<string>('all');
 
   const gradeTopics = topics.filter((t) => t.grades.includes(selectedGrade));
   const gradeProblems = problems.filter((p) => p.grades.includes(selectedGrade));
+
+  // Filter problems by topic
+  const filteredProblems = selectedTopicId === 'all'
+    ? gradeProblems
+    : gradeProblems.filter((p) => p.topicId === selectedTopicId);
+
+  // Group problems by topic for display
+  const problemsByTopic = gradeTopics.map(topic => ({
+    topic,
+    problems: gradeProblems.filter(p => p.topicId === topic.id)
+  })).filter(group => group.problems.length > 0);
 
   const handleDeleteTopic = (topicId: string, topicName: string) => {
     if (confirm(`Удалить тему "${topicName}" и все её задачи?`)) {
@@ -164,13 +177,48 @@ export default function ContentManagementPage() {
               </Link>
             </div>
 
-            {gradeProblems.length === 0 ? (
+            {/* Topic Filter */}
+            <div className="flex items-center gap-3">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-400 text-sm">Тема:</span>
+              <select
+                value={selectedTopicId}
+                onChange={(e) => setSelectedTopicId(e.target.value)}
+                className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">Все темы ({gradeProblems.length})</option>
+                {gradeTopics.map((topic) => {
+                  const count = gradeProblems.filter(p => p.topicId === topic.id).length;
+                  return (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.titleRu} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+              {selectedTopicId !== 'all' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedTopicId('all')}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Сбросить
+                </Button>
+              )}
+            </div>
+
+            {filteredProblems.length === 0 ? (
               <Card className="p-8 text-center">
                 <Code className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                <p className="text-gray-400">Нет задач для этого класса</p>
+                <p className="text-gray-400">
+                  {selectedTopicId === 'all'
+                    ? 'Нет задач для этого класса'
+                    : 'Нет задач для выбранной темы'}
+                </p>
               </Card>
             ) : (
-              gradeProblems.map((problem) => {
+              filteredProblems.map((problem) => {
                 const topic = topics.find((t) => t.id === problem.topicId);
 
                 return (
