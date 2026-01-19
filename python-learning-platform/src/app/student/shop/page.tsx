@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { Student } from '@/types';
 import Header from '@/components/layout/Header';
@@ -28,6 +28,21 @@ export default function ShopPage() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   const student = user as Student;
+
+  // Sync user data from server on mount to ensure shopPoints is up to date
+  useEffect(() => {
+    if (student?.id) {
+      fetch(`/api/students/${student.id}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            useStore.setState({ user: data });
+            sessionStorage.setItem('user', JSON.stringify(data));
+          }
+        })
+        .catch(() => {}); // Silently fail
+    }
+  }, [student?.id]);
 
   if (!student) return null;
 
