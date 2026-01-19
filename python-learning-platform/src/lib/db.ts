@@ -207,6 +207,85 @@ export async function markProblemCompleted(studentId: string, problemId: string,
   return student;
 }
 
+// ==================== STREAK ====================
+// Обновление стрика при входе пользователя
+export async function updateStreak(studentId: string): Promise<{ student: Student; streakUpdated: boolean; newAchievements: string[] }> {
+  const users = await getUsers();
+  const index = users.findIndex(u => u.id === studentId);
+  if (index === -1 || users[index].role !== 'student') {
+    throw new Error('Student not found');
+  }
+
+  const student = users[index] as Student;
+  const now = new Date();
+  const lastActive = student.lastActiveAt ? new Date(student.lastActiveAt) : null;
+
+  let streakUpdated = false;
+  const newAchievements: string[] = [];
+
+  // Получаем начало сегодняшнего дня (в локальном времени)
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (!lastActive) {
+    // Первый вход - устанавливаем стрик в 1
+    student.streakDays = 1;
+    student.lastActiveAt = now;
+    streakUpdated = true;
+    console.log(`[Streak] ${student.name}: First login, streak set to 1`);
+  } else {
+    // Получаем начало дня последней активности
+    const lastActiveStart = new Date(lastActive.getFullYear(), lastActive.getMonth(), lastActive.getDate());
+
+    // Разница в днях
+    const diffTime = todayStart.getTime() - lastActiveStart.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    console.log(`[Streak] ${student.name}: lastActive=${lastActiveStart.toISOString()}, today=${todayStart.toISOString()}, diffDays=${diffDays}`);
+
+    if (diffDays === 0) {
+      // Тот же день - стрик не меняется, но обновляем время
+      student.lastActiveAt = now;
+      console.log(`[Streak] ${student.name}: Same day login, streak stays at ${student.streakDays}`);
+    } else if (diffDays === 1) {
+      // Следующий день - увеличиваем стрик
+      student.streakDays = (student.streakDays || 0) + 1;
+      student.lastActiveAt = now;
+      streakUpdated = true;
+      console.log(`[Streak] ${student.name}: Consecutive day! Streak increased to ${student.streakDays}`);
+    } else {
+      // Пропущен день - сбрасываем стрик на 1
+      student.streakDays = 1;
+      student.lastActiveAt = now;
+      streakUpdated = true;
+      console.log(`[Streak] ${student.name}: Missed ${diffDays - 1} day(s), streak reset to 1`);
+    }
+  }
+
+  // Проверяем достижения за стрики
+  if (streakUpdated) {
+    const streakAchievements = achievements.filter(a => a.requirement.type === 'streak');
+    let achievementPoints = 0;
+
+    for (const achievement of streakAchievements) {
+      if (!student.achievements.includes(achievement.id) && student.streakDays >= achievement.requirement.value) {
+        student.achievements.push(achievement.id);
+        achievementPoints += achievement.points;
+        newAchievements.push(achievement.id);
+        console.log(`[Streak] ${student.name}: Earned achievement "${achievement.id}" (+${achievement.points} points)`);
+      }
+    }
+
+    // Начисляем баллы за достижения
+    if (achievementPoints > 0) {
+      student.points += achievementPoints;
+      student.shopPoints = (student.shopPoints || 0) + achievementPoints;
+    }
+  }
+
+  await setData('users', users);
+  return { student, streakUpdated, newAchievements };
+}
+
 // ==================== TOPICS ====================
 export async function getTopics(): Promise<Topic[]> {
   return getData('topics', []);

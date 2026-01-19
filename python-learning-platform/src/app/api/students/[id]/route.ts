@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserById, updateUser, deleteUser, initializeDatabase } from '@/lib/db';
+import { getUserById, updateUser, deleteUser, initializeDatabase, updateStreak } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -15,11 +15,21 @@ export async function GET(
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
-    const { password, ...safeUser } = user;
+    // Обновляем стрик при каждом получении данных студента
+    let finalUser = user;
+    try {
+      const streakResult = await updateStreak(id);
+      finalUser = streakResult.student;
+      console.log(`[API] GET student ${id}: streak updated to ${streakResult.student.streakDays}`);
+    } catch (e) {
+      console.error('[API] Failed to update streak:', e);
+    }
+
+    const { password, ...safeUser } = finalUser;
 
     // Debug logging
     const student = safeUser as any;
-    console.log(`[API] GET student ${id}: points=${student.points}, shopPoints=${student.shopPoints}`);
+    console.log(`[API] GET student ${id}: points=${student.points}, shopPoints=${student.shopPoints}, streak=${student.streakDays}`);
 
     return NextResponse.json(safeUser);
   } catch (error) {
