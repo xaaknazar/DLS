@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserById, updateUser, initializeDatabase } from '@/lib/db';
+import { getUserById, updateUser, initializeDatabase, deleteSubmissionsByStudentAndProblem } from '@/lib/db';
 import { Student } from '@/types';
 
 export async function POST(
@@ -35,6 +35,9 @@ export async function POST(
     const pointsToDeduct = points || 0;
     const newPoints = Math.max(0, student.points - pointsToDeduct);
 
+    // Delete all submissions for this student and problem
+    const deletedSubmissions = await deleteSubmissionsByStudentAndProblem(id, problemId);
+
     const updated = await updateUser(id, {
       completedProblems: newCompletedProblems,
       points: newPoints,
@@ -49,6 +52,7 @@ export async function POST(
       success: true,
       student: safeUser,
       deductedPoints: pointsToDeduct,
+      deletedSubmissions,
     });
   } catch (error) {
     console.error('Revoke problem error:', error);

@@ -44,6 +44,7 @@ export interface Topic {
   documentation: string; // Markdown content
   grades: number[]; // Now supports multiple grades
   problemIds: string[];
+  isLocked?: boolean; // If true, students cannot solve problems in this topic
 }
 
 // Problem types

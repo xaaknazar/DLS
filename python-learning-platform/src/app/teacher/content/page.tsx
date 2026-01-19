@@ -19,14 +19,17 @@ import {
   FlaskConical,
   Filter,
   Users,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ContentManagementPage() {
-  const { topics, problems, deleteTopic, deleteProblem, students, loadStudents } = useStore();
+  const { topics, problems, deleteTopic, deleteProblem, students, loadStudents, updateTopic } = useStore();
   const [selectedGrade, setSelectedGrade] = useState(7);
   const [activeTab, setActiveTab] = useState<'topics' | 'problems'>('topics');
   const [selectedTopicId, setSelectedTopicId] = useState<string>('all');
+  const [lockingTopicId, setLockingTopicId] = useState<string | null>(null);
 
   // Load students on mount
   useEffect(() => {
@@ -63,6 +66,18 @@ export default function ContentManagementPage() {
     if (confirm(`Удалить задачу "${problemName}"?`)) {
       deleteProblem(problemId);
       toast.success('Задача удалена');
+    }
+  };
+
+  const handleToggleLock = async (topicId: string, currentLocked: boolean) => {
+    setLockingTopicId(topicId);
+    try {
+      await updateTopic(topicId, { isLocked: !currentLocked });
+      toast.success(currentLocked ? 'Тема открыта' : 'Тема закрыта');
+    } catch (error) {
+      toast.error('Ошибка при изменении статуса темы');
+    } finally {
+      setLockingTopicId(null);
     }
   };
 
@@ -149,6 +164,22 @@ export default function ContentManagementPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {topic.isLocked && (
+                          <Badge variant="warning" className="mr-2">
+                            <Lock className="w-3 h-3 mr-1" />
+                            Закрыта
+                          </Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleToggleLock(topic.id, topic.isLocked || false)}
+                          disabled={lockingTopicId === topic.id}
+                          className={topic.isLocked ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-400 hover:text-white'}
+                          title={topic.isLocked ? 'Открыть тему' : 'Закрыть тему'}
+                        >
+                          {topic.isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                        </Button>
                         <Link href={`/teacher/content/topics/${topic.id}`}>
                           <Button variant="ghost" size="sm">
                             <Edit className="w-4 h-4" />

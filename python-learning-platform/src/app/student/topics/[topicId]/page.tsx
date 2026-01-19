@@ -18,6 +18,7 @@ import {
   CheckCircle,
   Clock,
   Star,
+  Lock,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -43,6 +44,17 @@ export default function TopicPage() {
       <Header title={topic.titleRu} subtitle={topic.descriptionRu} />
 
       <div className="p-8">
+        {/* Topic Locked Warning */}
+        {topic.isLocked && (
+          <div className="mb-6 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+            <div>
+              <p className="text-yellow-400 font-medium">Тема закрыта</p>
+              <p className="text-gray-400 text-sm">Вы можете просматривать материалы, но не можете отправлять решения задач.</p>
+            </div>
+          </div>
+        )}
+
         {/* Topic Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card className="p-4 flex items-center gap-4">

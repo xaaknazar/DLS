@@ -24,6 +24,7 @@ import {
   ChevronUp,
   PartyPopper,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
@@ -108,9 +109,18 @@ export default function ProblemPage() {
     }
   }, [nextProblem, problem, router]);
 
+  // Check if topic is locked
+  const isTopicLocked = topic?.isLocked || false;
+
   // Run code callback - must be before any conditional returns
   const runCode = useCallback(async (code: string) => {
     if (!problem || !student) return;
+
+    // Check if topic is locked
+    if (topic?.isLocked) {
+      toast.error('Тема закрыта. Вы не можете отправлять решения.');
+      return;
+    }
 
     if (!pyodideReady) {
       toast.error('Python загружается, подождите...');
@@ -177,7 +187,7 @@ export default function ProblemPage() {
     }
 
     setIsRunning(false);
-  }, [problem, student, isCompleted, pyodideReady, createSubmission]);
+  }, [problem, student, isCompleted, pyodideReady, createSubmission, topic]);
 
   // Now the conditional returns
   if (!student) return null;
@@ -264,6 +274,17 @@ export default function ProblemPage() {
       )}
 
       <div className="p-8">
+        {/* Topic Locked Warning */}
+        {isTopicLocked && (
+          <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+            <div>
+              <p className="text-yellow-400 font-medium">Тема закрыта</p>
+              <p className="text-gray-400 text-sm">Вы можете просматривать задачу, но не можете отправлять решения.</p>
+            </div>
+          </div>
+        )}
+
         {/* Back button */}
         <div className="flex items-center justify-between mb-4">
           <Link href={`/student/topics/${problem.topicId}`}>

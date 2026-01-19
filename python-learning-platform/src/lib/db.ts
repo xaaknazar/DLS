@@ -335,6 +335,16 @@ export async function createSubmission(submission: Submission): Promise<Submissi
   return submission;
 }
 
+export async function deleteSubmissionsByStudentAndProblem(studentId: string, problemId: string): Promise<number> {
+  const submissions = await getSubmissions();
+  const filteredSubmissions = submissions.filter(
+    s => !(s.studentId === studentId && s.problemId === problemId)
+  );
+  const deletedCount = submissions.length - filteredSubmissions.length;
+  await setData('submissions', filteredSubmissions);
+  return deletedCount;
+}
+
 // ==================== MESSAGES ====================
 export async function getMessages(): Promise<Message[]> {
   return getData('messages', []);
