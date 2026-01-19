@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
@@ -18,14 +18,20 @@ import {
   FileText,
   FlaskConical,
   Filter,
+  Users,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ContentManagementPage() {
-  const { topics, problems, deleteTopic, deleteProblem } = useStore();
+  const { topics, problems, deleteTopic, deleteProblem, students, loadStudents } = useStore();
   const [selectedGrade, setSelectedGrade] = useState(7);
   const [activeTab, setActiveTab] = useState<'topics' | 'problems'>('topics');
   const [selectedTopicId, setSelectedTopicId] = useState<string>('all');
+
+  // Load students on mount
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
   const gradeTopics = topics.filter((t) => t.grades.includes(selectedGrade));
   const gradeProblems = problems.filter((p) => p.grades.includes(selectedGrade));
@@ -40,6 +46,11 @@ export default function ContentManagementPage() {
     topic,
     problems: gradeProblems.filter(p => p.topicId === topic.id)
   })).filter(group => group.problems.length > 0);
+
+  // Count how many students solved a problem
+  const getSolvedCount = (problemId: string) => {
+    return students.filter(s => s.completedProblems?.includes(problemId)).length;
+  };
 
   const handleDeleteTopic = (topicId: string, topicName: string) => {
     if (confirm(`Удалить тему "${topicName}" и все её задачи?`)) {
@@ -220,6 +231,7 @@ export default function ContentManagementPage() {
             ) : (
               filteredProblems.map((problem) => {
                 const topic = topics.find((t) => t.id === problem.topicId);
+                const solvedCount = getSolvedCount(problem.id);
 
                 return (
                   <Card key={problem.id} className="p-5">
@@ -241,7 +253,13 @@ export default function ContentManagementPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-lg">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-green-500/10 rounded-lg" title="Решили задачу">
+                          <Users className="w-3.5 h-3.5 text-green-400" />
+                          <span className="text-green-400 text-sm font-medium">
+                            {solvedCount}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-lg" title="Тестов">
                           <FlaskConical className="w-3.5 h-3.5 text-purple-400" />
                           <span className="text-purple-400 text-sm font-medium">
                             {problem.testCases?.length || 0}
