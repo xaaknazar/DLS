@@ -31,9 +31,10 @@ export async function POST(
     // Remove problem from completed list
     const newCompletedProblems = student.completedProblems.filter(p => p !== problemId);
 
-    // Deduct points
+    // Deduct points from both points and shopPoints
     const pointsToDeduct = points || 0;
     const newPoints = Math.max(0, student.points - pointsToDeduct);
+    const newShopPoints = Math.max(0, (student.shopPoints || 0) - pointsToDeduct);
 
     // Delete all submissions for this student and problem
     const deletedSubmissions = await deleteSubmissionsByStudentAndProblem(id, problemId);
@@ -41,6 +42,7 @@ export async function POST(
     const updated = await updateUser(id, {
       completedProblems: newCompletedProblems,
       points: newPoints,
+      shopPoints: newShopPoints,
     });
 
     if (!updated) {

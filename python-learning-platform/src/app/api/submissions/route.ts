@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSubmissions, getSubmissionsByStudent, getSubmissionsByProblem, createSubmission, markProblemCompleted, initializeDatabase, getProblemById } from '@/lib/db';
+import { getSubmissions, getSubmissionsByStudent, getSubmissionsByProblem, createSubmission, markProblemCompleted, initializeDatabase, getProblemById, getUserById } from '@/lib/db';
+import { Student } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,14 +32,25 @@ export async function POST(request: NextRequest) {
     await initializeDatabase();
     const submission = await request.json();
 
+    // Check if problem is already completed BEFORE creating submission
+    // This prevents race condition where multiple submissions could award points
+    let alreadyCompleted = false;
+    if (submission.status === 'passed' && submission.studentId && submission.problemId) {
+      const user = await getUserById(submission.studentId);
+      if (user && user.role === 'student') {
+        const student = user as Student;
+        alreadyCompleted = student.completedProblems.includes(submission.problemId);
+      }
+    }
+
     const newSubmission = await createSubmission({
       ...submission,
-      id: submission.id || `submission-${Date.now()}`,
+      id: submission.id || `submission-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       submittedAt: new Date(),
     });
 
-    // If submission passed, mark problem as completed
-    if (submission.status === 'passed' && submission.studentId && submission.problemId) {
+    // If submission passed and problem wasn't already completed, mark as completed
+    if (submission.status === 'passed' && submission.studentId && submission.problemId && !alreadyCompleted) {
       // Get problem points from database
       const problem = await getProblemById(submission.problemId);
       const points = problem?.points || 0;

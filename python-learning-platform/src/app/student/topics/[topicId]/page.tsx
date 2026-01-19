@@ -122,35 +122,30 @@ export default function TopicPage() {
 
               return (
                 <Link key={problem.id} href={`/student/problems/${problem.id}`}>
-                  <Card variant="interactive" className="p-5">
+                  <Card variant="interactive" className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
                             isCompleted
                               ? 'bg-green-500/10'
                               : 'bg-gray-700'
                           }`}
                         >
                           {isCompleted ? (
-                            <CheckCircle className="w-5 h-5 text-green-400" />
+                            <CheckCircle className="w-4 h-4 text-green-400" />
                           ) : (
-                            <span className="text-gray-400 font-medium">
+                            <span className="text-gray-400 text-sm font-medium">
                               {index + 1}
                             </span>
                           )}
                         </div>
-                        <div>
-                          <h3 className="font-medium text-white">
-                            {problem.titleRu}
-                          </h3>
-                          <p className="text-gray-400 text-sm mt-1">
-                            {problem.descriptionRu}
-                          </p>
-                        </div>
+                        <h3 className="font-medium text-white">
+                          {problem.titleRu}
+                        </h3>
                       </div>
 
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <Badge
                           className={getDifficultyColor(problem.difficulty)}
                           size="sm"

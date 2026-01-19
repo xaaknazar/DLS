@@ -36,12 +36,14 @@ export async function POST(
     // Remove achievement from list
     const newAchievements = student.achievements.filter(a => a !== achievementId);
 
-    // Deduct points
+    // Deduct points from both points and shopPoints
     const newPoints = Math.max(0, student.points - pointsToDeduct);
+    const newShopPoints = Math.max(0, (student.shopPoints || 0) - pointsToDeduct);
 
     const updated = await updateUser(id, {
       achievements: newAchievements,
       points: newPoints,
+      shopPoints: newShopPoints,
     });
 
     if (!updated) {
