@@ -18,7 +18,6 @@ import {
   TrendingDown,
   Minus,
   Sparkles,
-  Award,
 } from 'lucide-react';
 
 interface LeaderboardEntry {
@@ -341,53 +340,6 @@ export default function LeaderboardPage() {
             ))}
           </div>
         </div>
-
-        {/* Top 3 Podium */}
-        {displayData.length >= 3 && (
-          <div className="flex justify-center items-end gap-2 sm:gap-4 mb-8">
-            {/* 2nd Place */}
-            <div className="flex flex-col items-center">
-              <div className="mb-2">{getAvatar(displayData[1], 'md')}</div>
-              <div className="bg-gradient-to-b from-gray-400/20 to-gray-500/10 rounded-t-lg p-3 sm:p-4 w-20 sm:w-28 h-24 sm:h-28 flex flex-col items-center justify-end border border-gray-400/30">
-                <Medal className="w-6 h-6 sm:w-8 sm:h-8 text-gray-300 mb-1" />
-                <p className="text-xs sm:text-sm text-gray-300 font-medium text-center truncate w-full">
-                  {displayData[1].name.split(' ')[0]}
-                </p>
-                <p className="text-xs text-gray-400">{displayData[1].points} pts</p>
-                {getRankChangeDisplay(displayData[1].change)}
-              </div>
-            </div>
-
-            {/* 1st Place */}
-            <div className="flex flex-col items-center -mt-4">
-              <div className="mb-2 relative">
-                {getAvatar(displayData[0], 'lg')}
-                <Crown className="w-6 h-6 text-yellow-400 absolute -top-3 left-1/2 -translate-x-1/2" />
-              </div>
-              <div className="bg-gradient-to-b from-yellow-500/20 to-amber-500/10 rounded-t-lg p-3 sm:p-4 w-24 sm:w-32 h-32 sm:h-36 flex flex-col items-center justify-end border border-yellow-500/40 shadow-lg shadow-yellow-500/10">
-                <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-yellow-400 mb-1" />
-                <p className="text-sm sm:text-base text-yellow-300 font-bold text-center truncate w-full">
-                  {displayData[0].name.split(' ')[0]}
-                </p>
-                <p className="text-xs sm:text-sm text-yellow-400">{displayData[0].points} pts</p>
-                {getRankChangeDisplay(displayData[0].change)}
-              </div>
-            </div>
-
-            {/* 3rd Place */}
-            <div className="flex flex-col items-center">
-              <div className="mb-2">{getAvatar(displayData[2], 'md')}</div>
-              <div className="bg-gradient-to-b from-amber-600/20 to-orange-500/10 rounded-t-lg p-3 sm:p-4 w-20 sm:w-28 h-20 sm:h-24 flex flex-col items-center justify-end border border-amber-600/30">
-                <Award className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 mb-1" />
-                <p className="text-xs sm:text-sm text-amber-400 font-medium text-center truncate w-full">
-                  {displayData[2].name.split(' ')[0]}
-                </p>
-                <p className="text-xs text-amber-500">{displayData[2].points} pts</p>
-                {getRankChangeDisplay(displayData[2].change)}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Leaderboard List */}
         <div className="space-y-2">
