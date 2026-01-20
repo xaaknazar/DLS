@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSubmissions, getSubmissionsByStudent, getSubmissionsByProblem, createSubmission, markProblemCompleted, initializeDatabase, getProblemById, getUserById } from '@/lib/db';
+import { getSubmissions, getSubmissionsByStudent, getSubmissionsByProblem, createSubmission, markProblemCompleted, initializeDatabase, getProblemById, getUserById, updateRankSnapshots } from '@/lib/db';
 import { Student } from '@/types';
 
 export async function GET(request: NextRequest) {
@@ -51,6 +51,9 @@ export async function POST(request: NextRequest) {
 
     // If submission passed and problem wasn't already completed, mark as completed
     if (submission.status === 'passed' && submission.studentId && submission.problemId && !alreadyCompleted) {
+      // Save current rank snapshot before changing points (so we can show rank change)
+      await updateRankSnapshots();
+
       // Get problem points from database
       const problem = await getProblemById(submission.problemId);
       const points = problem?.points || 0;

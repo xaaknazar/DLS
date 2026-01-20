@@ -25,6 +25,9 @@ export interface Student extends User {
   purchasedItems: string[];
   equippedAvatar: string | null;
   equippedFrame: string | null;
+  // Rank tracking
+  previousRank?: number;    // Предыдущая позиция в рейтинге (для отображения изменений)
+  rankUpdatedAt?: Date;     // Когда последний раз обновлялся рейтинг
 }
 
 export interface Teacher extends User {

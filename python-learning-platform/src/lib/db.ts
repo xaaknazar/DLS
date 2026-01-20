@@ -1824,3 +1824,87 @@ print(x)  # None
 function getDefaultProblems(): Problem[] {
   return defaultProblemsData;
 }
+
+// ==================== RANK TRACKING ====================
+// Обновляет previousRank для всех студентов на основе текущего рейтинга
+// force=true - принудительное обновление (перед решением задачи)
+// force=false - обновление только если прошло 24+ часов (при первом входе)
+export async function updateRankSnapshots(grade?: number, force: boolean = true): Promise<{ updated: number }> {
+  const users = await getUsers();
+  const students = users.filter((u): u is Student => u.role === 'student');
+
+  // Фильтруем по классу если указан
+  const filteredStudents = grade
+    ? students.filter(s => s.grade === grade)
+    : students;
+
+  // Сортируем по баллам
+  const sortedStudents = [...filteredStudents].sort((a, b) => b.points - a.points);
+
+  // Создаём карту текущих рангов
+  const rankMap = new Map<string, number>();
+  sortedStudents.forEach((student, index) => {
+    rankMap.set(student.id, index + 1);
+  });
+
+  // Обновляем previousRank для каждого студента
+  const now = new Date();
+  let updated = 0;
+
+  for (const user of users) {
+    if (user.role === 'student') {
+      const student = user as Student;
+      const currentRank = rankMap.get(student.id);
+
+      if (currentRank !== undefined) {
+        // Если force=true - всегда обновляем
+        // Если force=false - обновляем только если previousRank не установлен или прошло 24+ часов
+        const lastUpdate = student.rankUpdatedAt ? new Date(student.rankUpdatedAt) : null;
+        const hoursSinceUpdate = lastUpdate
+          ? (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60)
+          : 999;
+
+        const shouldUpdate = force || student.previousRank === undefined || hoursSinceUpdate >= 24;
+
+        if (shouldUpdate) {
+          student.previousRank = currentRank;
+          student.rankUpdatedAt = now;
+          updated++;
+        }
+      }
+    }
+  }
+
+  if (updated > 0) {
+    await setData('users', users);
+    console.log(`[Rank] Updated ${updated} student rank snapshots (force=${force})`);
+  }
+
+  return { updated };
+}
+
+// Получить изменение позиции для студента
+export async function getRankChange(studentId: string, grade?: number): Promise<{ currentRank: number; previousRank: number | null; change: number | null }> {
+  const students = await getStudents();
+
+  // Фильтруем по классу если указан
+  const filteredStudents = grade
+    ? students.filter(s => s.grade === grade)
+    : students;
+
+  // Сортируем по баллам
+  const sortedStudents = [...filteredStudents].sort((a, b) => b.points - a.points);
+
+  // Находим текущую позицию студента
+  const currentRank = sortedStudents.findIndex(s => s.id === studentId) + 1;
+  const student = students.find(s => s.id === studentId);
+
+  if (!student || currentRank === 0) {
+    return { currentRank: 0, previousRank: null, change: null };
+  }
+
+  const previousRank = student.previousRank ?? null;
+  const change = previousRank !== null ? previousRank - currentRank : null;
+
+  return { currentRank, previousRank, change };
+}
