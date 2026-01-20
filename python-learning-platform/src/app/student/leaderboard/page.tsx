@@ -255,7 +255,7 @@ export default function LeaderboardPage() {
     <div className="min-h-screen bg-gray-900">
       <Header title="Рейтинг" subtitle="Соревнуйся с одноклассниками" />
 
-      <div className="p-4 md:p-8 max-w-4xl mx-auto">
+      <div className="p-4 md:p-8 max-w-6xl mx-auto">
         {/* Current User Rank Card */}
         <Card className="p-6 mb-8 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10 border-blue-500/30 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 animate-pulse" />
