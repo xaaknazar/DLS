@@ -10,13 +10,12 @@ import Button from '@/components/ui/Button';
 import { getTopicById, getProblemsByTopic } from '@/lib/store';
 import { getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
+import { DocumentationViewer } from '@/components/documentation';
 import {
   BookOpen,
   Code,
   ChevronRight,
   CheckCircle,
-  Clock,
   Star,
   Lock,
 } from 'lucide-react';
@@ -111,9 +110,7 @@ export default function TopicPage() {
         {/* Content */}
         {activeTab === 'docs' ? (
           <Card className="p-8">
-            <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-gray-300 prose-code:bg-gray-800 prose-code:px-2 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-800 prose-pre:border prose-pre:border-gray-700">
-              <ReactMarkdown>{topic.documentation}</ReactMarkdown>
-            </div>
+            <DocumentationViewer content={topic.documentation} />
           </Card>
         ) : (
           <div className="space-y-4">
