@@ -365,25 +365,41 @@ export function findSimilarSubmissions(
 
 // ==================== AI DETECTION ====================
 
+// Detailed AI pattern categories for reporting
+export interface AIPatternDetail {
+  category: 'comprehension' | 'type_hints' | 'decorators' | 'formatting' | 'english_comments' | 'advanced_constructs';
+  pattern: string;
+  description: string;
+  descriptionRu: string;
+  weight: number;
+}
+
 // Patterns that suggest AI-generated code
 const AI_PATTERNS = {
   // Perfect docstrings and comments
   perfectDocstring: /^def\s+\w+\([^)]*\):\s*\n\s*"""[\s\S]+?"""/m,
-  typeHints: /def\s+\w+\([^)]*:\s*(int|str|float|bool|list|dict)/,
+  typeHints: /def\s+\w+\([^)]*:\s*(int|str|float|bool|list|dict|List|Dict|Optional|Union)/,
+  returnTypeHint: /->\s*(int|str|float|bool|list|dict|List|Dict|None|Optional)/,
 
-  // Advanced constructs students unlikely know
+  // Comprehensions - AI loves these
   listComprehension: /\[.+\s+for\s+.+\s+in\s+.+\]/,
   dictComprehension: /\{.+:\s*.+\s+for\s+.+\s+in\s+.+\}/,
   setComprehension: /\{.+\s+for\s+.+\s+in\s+.+\}/,
   generatorExpression: /\(.+\s+for\s+.+\s+in\s+.+\)/,
+  nestedComprehension: /\[.+\[.+for.+\].+for.+\]/,
+
+  // Advanced constructs
   lambdaFunction: /lambda\s+\w+\s*:/,
   walrusOperator: /:=/,
   fString: /f["'][^"']*\{[^}]+\}[^"']*["']/,
+  multipleAssignment: /\w+\s*,\s*\w+\s*=.+,.+/,
+  starOperator: /\*\w+|\*\*\w+/,
 
   // Professional patterns
   errorHandling: /try:\s*[\s\S]+?except\s+\w+(\s+as\s+\w+)?:/,
   withStatement: /with\s+open\(/,
   decorators: /@\w+/,
+  classDefinition: /class\s+\w+.*:/,
 
   // English comments
   englishComments: /#\s*[A-Za-z]{3,}\s+[A-Za-z]{3,}/,
@@ -393,7 +409,7 @@ const AI_PATTERNS = {
 const TOPIC_KNOWLEDGE: Record<string, { allowed: string[]; suspicious: string[] }> = {
   'variables': {
     allowed: ['print', 'input', '=', '+', '-', '*', '/'],
-    suspicious: ['def', 'class', 'for', 'while', 'if', 'list', 'dict'],
+    suspicious: ['def', 'class', 'for', 'while', 'if', 'list', 'dict', 'lambda', '[', ']'],
   },
   'conditions': {
     allowed: ['print', 'input', 'if', 'elif', 'else', '==', '!=', '<', '>', 'and', 'or', 'not'],
@@ -403,86 +419,202 @@ const TOPIC_KNOWLEDGE: Record<string, { allowed: string[]; suspicious: string[] 
     allowed: ['print', 'input', 'if', 'elif', 'else', 'for', 'while', 'range', 'break', 'continue'],
     suspicious: ['def', 'class', 'lambda', 'dict', 'set'],
   },
+  'strings': {
+    allowed: ['print', 'input', 'if', 'elif', 'else', 'for', 'while', 'len', '+', '*', '[', ']'],
+    suspicious: ['def', 'class', 'lambda', 'dict', 'set', 'join', 'split'],
+  },
+  'lists': {
+    allowed: ['print', 'input', 'if', 'for', 'while', 'len', 'list', 'append', 'pop', 'range'],
+    suspicious: ['def', 'class', 'lambda', 'dict', 'set', 'comprehension'],
+  },
   'functions': {
     allowed: ['def', 'return', 'print', 'input', 'if', 'for', 'while'],
-    suspicious: ['class', 'lambda', 'yield', 'async', 'await'],
+    suspicious: ['class', 'lambda', 'yield', 'async', 'await', 'decorator'],
   },
 };
 
 /**
- * Detect AI-generated code patterns
+ * Detailed AI detection result
  */
-export function detectAIPatterns(code: string, topicId?: string): {
+export interface AIDetectionResult {
   isLikelyAI: boolean;
   confidence: number;
   patterns: string[];
-} {
+  categories: {
+    comprehensions: { detected: boolean; patterns: string[]; score: number };
+    typeHints: { detected: boolean; patterns: string[]; score: number };
+    decorators: { detected: boolean; patterns: string[]; score: number };
+    formatting: { detected: boolean; patterns: string[]; score: number };
+    englishComments: { detected: boolean; patterns: string[]; score: number };
+    advancedConstructs: { detected: boolean; patterns: string[]; score: number };
+  };
+}
+
+/**
+ * Detect AI-generated code patterns with detailed categorization
+ */
+export function detectAIPatterns(code: string, topicId?: string): AIDetectionResult {
   const patterns: string[] = [];
   let score = 0;
 
-  // Check for AI patterns
-  if (AI_PATTERNS.perfectDocstring.test(code)) {
-    patterns.push('Perfect docstring');
+  // Initialize categories
+  const categories = {
+    comprehensions: { detected: false, patterns: [] as string[], score: 0 },
+    typeHints: { detected: false, patterns: [] as string[], score: 0 },
+    decorators: { detected: false, patterns: [] as string[], score: 0 },
+    formatting: { detected: false, patterns: [] as string[], score: 0 },
+    englishComments: { detected: false, patterns: [] as string[], score: 0 },
+    advancedConstructs: { detected: false, patterns: [] as string[], score: 0 },
+  };
+
+  // 1. Comprehensions (AI loves these)
+  if (AI_PATTERNS.listComprehension.test(code)) {
+    categories.comprehensions.detected = true;
+    categories.comprehensions.patterns.push('List comprehension');
+    categories.comprehensions.score += 20;
+    patterns.push('List comprehension');
     score += 20;
   }
-  if (AI_PATTERNS.typeHints.test(code)) {
-    patterns.push('Type hints');
-    score += 15;
-  }
-  if (AI_PATTERNS.listComprehension.test(code)) {
-    patterns.push('List comprehension');
-    score += 10;
-  }
-  if (AI_PATTERNS.lambdaFunction.test(code)) {
-    patterns.push('Lambda function');
-    score += 15;
-  }
-  if (AI_PATTERNS.walrusOperator.test(code)) {
-    patterns.push('Walrus operator (:=)');
+  if (AI_PATTERNS.dictComprehension.test(code)) {
+    categories.comprehensions.detected = true;
+    categories.comprehensions.patterns.push('Dict comprehension');
+    categories.comprehensions.score += 25;
+    patterns.push('Dict comprehension');
     score += 25;
   }
-  if (AI_PATTERNS.errorHandling.test(code)) {
-    patterns.push('Try/except blocks');
-    score += 10;
+  if (AI_PATTERNS.setComprehension.test(code)) {
+    categories.comprehensions.detected = true;
+    categories.comprehensions.patterns.push('Set comprehension');
+    categories.comprehensions.score += 25;
+    patterns.push('Set comprehension');
+    score += 25;
   }
+  if (AI_PATTERNS.generatorExpression.test(code)) {
+    categories.comprehensions.detected = true;
+    categories.comprehensions.patterns.push('Generator expression');
+    categories.comprehensions.score += 30;
+    patterns.push('Generator expression');
+    score += 30;
+  }
+  if (AI_PATTERNS.nestedComprehension.test(code)) {
+    categories.comprehensions.detected = true;
+    categories.comprehensions.patterns.push('Nested comprehension');
+    categories.comprehensions.score += 35;
+    patterns.push('Nested comprehension');
+    score += 35;
+  }
+
+  // 2. Type hints (very common in AI code)
+  if (AI_PATTERNS.typeHints.test(code)) {
+    categories.typeHints.detected = true;
+    categories.typeHints.patterns.push('Function type hints');
+    categories.typeHints.score += 25;
+    patterns.push('Type hints');
+    score += 25;
+  }
+  if (AI_PATTERNS.returnTypeHint.test(code)) {
+    categories.typeHints.detected = true;
+    categories.typeHints.patterns.push('Return type annotation');
+    categories.typeHints.score += 25;
+    patterns.push('Return type annotation');
+    score += 25;
+  }
+
+  // 3. Decorators
   if (AI_PATTERNS.decorators.test(code)) {
+    categories.decorators.detected = true;
+    categories.decorators.patterns.push('Decorators (@)');
+    categories.decorators.score += 30;
     patterns.push('Decorators');
-    score += 20;
+    score += 30;
   }
 
-  // Check for English comments
-  const comments = code.match(/#.*/g) || [];
-  const englishComments = comments.filter(c => /[A-Za-z]{4,}/.test(c) && !/[а-яА-ЯёЁ]/.test(c));
-  if (englishComments.length > 0) {
-    patterns.push('English comments');
-    score += 15;
-  }
-
-  // Check topic-specific knowledge
-  if (topicId) {
-    const knowledge = TOPIC_KNOWLEDGE[topicId];
-    if (knowledge) {
-      for (const suspicious of knowledge.suspicious) {
-        const regex = new RegExp(`\\b${suspicious}\\b`);
-        if (regex.test(code)) {
-          patterns.push(`Uses "${suspicious}" (not yet taught)`);
-          score += 15;
-        }
-      }
-    }
-  }
-
-  // Perfect formatting check
+  // 4. Perfect formatting check
   const lines = code.split('\n');
   const hasConsistentIndent = lines.every(line =>
     line.trim() === '' || /^(\s{4})*\S/.test(line) || /^\S/.test(line)
   );
   if (hasConsistentIndent && lines.length > 5) {
-    // Check if indentation is suspiciously perfect (4-space indent consistently)
     const indentedLines = lines.filter(l => l.startsWith('    '));
     if (indentedLines.length > 3 && indentedLines.every(l => /^\s{4}(?!\s{1,3}\S)/.test(l))) {
-      patterns.push('Suspiciously perfect formatting');
-      score += 10;
+      categories.formatting.detected = true;
+      categories.formatting.patterns.push('Perfect 4-space indentation');
+      categories.formatting.score += 15;
+      patterns.push('Perfect formatting');
+      score += 15;
+    }
+  }
+
+  // Check for perfect docstrings
+  if (AI_PATTERNS.perfectDocstring.test(code)) {
+    categories.formatting.detected = true;
+    categories.formatting.patterns.push('Professional docstring');
+    categories.formatting.score += 20;
+    patterns.push('Professional docstring');
+    score += 20;
+  }
+
+  // 5. English comments
+  const comments = code.match(/#.*/g) || [];
+  const englishComments = comments.filter(c => {
+    const text = c.slice(1).trim();
+    return text.length > 3 && /^[A-Za-z\s.,!?]+$/.test(text) && !/[а-яА-ЯёЁ]/.test(text);
+  });
+  if (englishComments.length > 0) {
+    categories.englishComments.detected = true;
+    categories.englishComments.patterns = englishComments.slice(0, 3);
+    categories.englishComments.score += 20;
+    patterns.push(`English comments (${englishComments.length})`);
+    score += 20;
+  }
+
+  // 6. Advanced constructs
+  if (AI_PATTERNS.lambdaFunction.test(code)) {
+    categories.advancedConstructs.detected = true;
+    categories.advancedConstructs.patterns.push('Lambda function');
+    categories.advancedConstructs.score += 20;
+    patterns.push('Lambda function');
+    score += 20;
+  }
+  if (AI_PATTERNS.walrusOperator.test(code)) {
+    categories.advancedConstructs.detected = true;
+    categories.advancedConstructs.patterns.push('Walrus operator (:=)');
+    categories.advancedConstructs.score += 35;
+    patterns.push('Walrus operator');
+    score += 35;
+  }
+  if (AI_PATTERNS.errorHandling.test(code)) {
+    categories.advancedConstructs.detected = true;
+    categories.advancedConstructs.patterns.push('Try/except blocks');
+    categories.advancedConstructs.score += 15;
+    patterns.push('Try/except');
+    score += 15;
+  }
+  if (AI_PATTERNS.withStatement.test(code)) {
+    categories.advancedConstructs.detected = true;
+    categories.advancedConstructs.patterns.push('Context manager (with)');
+    categories.advancedConstructs.score += 20;
+    patterns.push('Context manager');
+    score += 20;
+  }
+
+  // 7. Check topic-specific knowledge (constructs not yet taught)
+  if (topicId) {
+    const knowledge = TOPIC_KNOWLEDGE[topicId];
+    if (knowledge) {
+      for (const suspicious of knowledge.suspicious) {
+        // Skip comprehension check if we already flagged it
+        if (suspicious === 'comprehension' && categories.comprehensions.detected) continue;
+
+        const regex = new RegExp(`\\b${suspicious}\\b`);
+        if (regex.test(code)) {
+          categories.advancedConstructs.detected = true;
+          categories.advancedConstructs.patterns.push(`"${suspicious}" (не по теме)`);
+          categories.advancedConstructs.score += 20;
+          patterns.push(`Uses "${suspicious}" (not yet taught)`);
+          score += 20;
+        }
+      }
     }
   }
 
@@ -490,10 +622,11 @@ export function detectAIPatterns(code: string, topicId?: string): {
     isLikelyAI: score >= 40,
     confidence: Math.min(score, 100),
     patterns,
+    categories,
   };
 }
 
-// ==================== TIMING ANALYSIS ====================
+// ==================== BEHAVIOR ANALYSIS ====================
 
 // Expected time ranges in seconds for each difficulty
 const EXPECTED_TIME: Record<string, { min: number; expected: number; max: number }> = {
@@ -503,7 +636,217 @@ const EXPECTED_TIME: Record<string, { min: number; expected: number; max: number
 };
 
 /**
- * Analyze if solution was too fast
+ * Detailed behavior analysis result
+ */
+export interface BehaviorAnalysisResult {
+  overallScore: number; // 0-100, higher = more suspicious
+  timing: {
+    suspicious: boolean;
+    severity: CheatSeverity;
+    timeSpent: number | null;
+    expectedMin: number;
+    expectedMax: number;
+    description: string;
+    descriptionRu: string;
+  };
+  keystrokes: {
+    suspicious: boolean;
+    severity: CheatSeverity;
+    count: number | null;
+    expectedMin: number;
+    ratio: number | null; // keystrokes per character
+    description: string;
+    descriptionRu: string;
+  };
+  pasteEvents: {
+    suspicious: boolean;
+    severity: CheatSeverity;
+    count: number | null;
+    description: string;
+    descriptionRu: string;
+  };
+  tabSwitches: {
+    suspicious: boolean;
+    severity: CheatSeverity;
+    count: number | null;
+    description: string;
+    descriptionRu: string;
+  };
+}
+
+/**
+ * Analyze student behavior during problem solving
+ */
+export function analyzeBehavior(
+  metadata: SubmissionMetadata | undefined,
+  code: string,
+  difficulty: 'easy' | 'medium' | 'hard'
+): BehaviorAnalysisResult {
+  const codeLength = code.length;
+  const expected = EXPECTED_TIME[difficulty];
+
+  // Adjust expected time for code length
+  const lengthFactor = Math.max(0.5, Math.min(1.5, codeLength / 200));
+  const adjustedMin = expected.min * lengthFactor;
+
+  let overallScore = 0;
+
+  // 1. Timing analysis
+  const timeSpent = metadata?.timeSpentSeconds ?? null;
+  let timingSuspicious = false;
+  let timingSeverity: CheatSeverity = 'low';
+  let timingDescription = 'Нет данных о времени';
+  let timingDescriptionRu = 'Нет данных о времени';
+
+  if (timeSpent !== null) {
+    if (timeSpent < adjustedMin * 0.5) {
+      timingSuspicious = true;
+      timingSeverity = 'high';
+      timingDescription = `Solved in ${timeSpent}s, expected minimum ${Math.round(adjustedMin)}s`;
+      timingDescriptionRu = `Решено за ${timeSpent}с — очень быстро! Ожидаемый минимум: ${Math.round(adjustedMin)}с`;
+      overallScore += 30;
+    } else if (timeSpent < adjustedMin * 0.75) {
+      timingSuspicious = true;
+      timingSeverity = 'medium';
+      timingDescription = `Solved in ${timeSpent}s, expected minimum ${Math.round(adjustedMin)}s`;
+      timingDescriptionRu = `Решено за ${timeSpent}с — быстрее ожидаемого (минимум ${Math.round(adjustedMin)}с)`;
+      overallScore += 15;
+    } else {
+      timingDescription = `Solved in ${timeSpent}s (normal)`;
+      timingDescriptionRu = `Решено за ${timeSpent}с — нормальное время`;
+    }
+  }
+
+  // 2. Keystroke analysis
+  const keystrokeCount = metadata?.keystrokeCount ?? null;
+  const expectedMinKeystrokes = codeLength * 0.3; // At least 30% of code length
+  let keystrokeSuspicious = false;
+  let keystrokeSeverity: CheatSeverity = 'low';
+  let keystrokeRatio: number | null = null;
+  let keystrokeDescription = 'Нет данных о нажатиях';
+  let keystrokeDescriptionRu = 'Нет данных о нажатиях клавиш';
+
+  if (keystrokeCount !== null) {
+    keystrokeRatio = keystrokeCount / codeLength;
+
+    if (keystrokeCount < codeLength * 0.2) {
+      keystrokeSuspicious = true;
+      keystrokeSeverity = 'high';
+      keystrokeDescription = `Only ${keystrokeCount} keystrokes for ${codeLength} chars (ratio: ${keystrokeRatio.toFixed(2)})`;
+      keystrokeDescriptionRu = `Всего ${keystrokeCount} нажатий для ${codeLength} символов — очень мало!`;
+      overallScore += 35;
+    } else if (keystrokeCount < codeLength * 0.5) {
+      keystrokeSuspicious = true;
+      keystrokeSeverity = 'medium';
+      keystrokeDescription = `${keystrokeCount} keystrokes for ${codeLength} chars (ratio: ${keystrokeRatio.toFixed(2)})`;
+      keystrokeDescriptionRu = `${keystrokeCount} нажатий для ${codeLength} символов — подозрительно мало`;
+      overallScore += 20;
+    } else {
+      keystrokeDescription = `${keystrokeCount} keystrokes for ${codeLength} chars (normal)`;
+      keystrokeDescriptionRu = `${keystrokeCount} нажатий для ${codeLength} символов — нормально`;
+    }
+  }
+
+  // 3. Paste events analysis
+  const pasteCount = metadata?.pasteCount ?? null;
+  let pasteSuspicious = false;
+  let pasteSeverity: CheatSeverity = 'low';
+  let pasteDescription = 'Нет данных о вставках';
+  let pasteDescriptionRu = 'Нет данных о событиях вставки';
+
+  if (pasteCount !== null) {
+    if (pasteCount > 5) {
+      pasteSuspicious = true;
+      pasteSeverity = 'high';
+      pasteDescription = `${pasteCount} paste events detected`;
+      pasteDescriptionRu = `${pasteCount} событий вставки (Ctrl+V) — очень много!`;
+      overallScore += 25;
+    } else if (pasteCount > 2) {
+      pasteSuspicious = true;
+      pasteSeverity = 'medium';
+      pasteDescription = `${pasteCount} paste events detected`;
+      pasteDescriptionRu = `${pasteCount} событий вставки (Ctrl+V) — подозрительно`;
+      overallScore += 15;
+    } else if (pasteCount > 0) {
+      pasteSuspicious = true;
+      pasteSeverity = 'low';
+      pasteDescription = `${pasteCount} paste event(s) detected`;
+      pasteDescriptionRu = `${pasteCount} событие(й) вставки обнаружено`;
+      overallScore += 5;
+    } else {
+      pasteDescription = 'No paste events';
+      pasteDescriptionRu = 'Событий вставки не обнаружено';
+    }
+  }
+
+  // 4. Tab switch analysis
+  const tabSwitchCount = metadata?.tabSwitchCount ?? null;
+  let tabSwitchSuspicious = false;
+  let tabSwitchSeverity: CheatSeverity = 'low';
+  let tabSwitchDescription = 'Нет данных о вкладках';
+  let tabSwitchDescriptionRu = 'Нет данных о переключении вкладок';
+
+  if (tabSwitchCount !== null) {
+    if (tabSwitchCount > 10) {
+      tabSwitchSuspicious = true;
+      tabSwitchSeverity = 'high';
+      tabSwitchDescription = `${tabSwitchCount} tab switches detected`;
+      tabSwitchDescriptionRu = `${tabSwitchCount} переключений вкладок — очень много!`;
+      overallScore += 20;
+    } else if (tabSwitchCount > 5) {
+      tabSwitchSuspicious = true;
+      tabSwitchSeverity = 'medium';
+      tabSwitchDescription = `${tabSwitchCount} tab switches detected`;
+      tabSwitchDescriptionRu = `${tabSwitchCount} переключений вкладок — подозрительно`;
+      overallScore += 10;
+    } else if (tabSwitchCount > 0) {
+      tabSwitchDescription = `${tabSwitchCount} tab switch(es) detected`;
+      tabSwitchDescriptionRu = `${tabSwitchCount} переключение(й) вкладок`;
+    } else {
+      tabSwitchDescription = 'No tab switches';
+      tabSwitchDescriptionRu = 'Переключений вкладок не было';
+    }
+  }
+
+  return {
+    overallScore: Math.min(overallScore, 100),
+    timing: {
+      suspicious: timingSuspicious,
+      severity: timingSeverity,
+      timeSpent,
+      expectedMin: Math.round(adjustedMin),
+      expectedMax: expected.max,
+      description: timingDescription,
+      descriptionRu: timingDescriptionRu,
+    },
+    keystrokes: {
+      suspicious: keystrokeSuspicious,
+      severity: keystrokeSeverity,
+      count: keystrokeCount,
+      expectedMin: Math.round(expectedMinKeystrokes),
+      ratio: keystrokeRatio,
+      description: keystrokeDescription,
+      descriptionRu: keystrokeDescriptionRu,
+    },
+    pasteEvents: {
+      suspicious: pasteSuspicious,
+      severity: pasteSeverity,
+      count: pasteCount,
+      description: pasteDescription,
+      descriptionRu: pasteDescriptionRu,
+    },
+    tabSwitches: {
+      suspicious: tabSwitchSuspicious,
+      severity: tabSwitchSeverity,
+      count: tabSwitchCount,
+      description: tabSwitchDescription,
+      descriptionRu: tabSwitchDescriptionRu,
+    },
+  };
+}
+
+/**
+ * Analyze if solution was too fast (legacy function for compatibility)
  */
 export function analyzeSubmissionTime(
   timeSpentSeconds: number,
@@ -833,4 +1176,182 @@ export function generateCheatSummary(
     recentSimilarityMatches: similarityMatches.slice(0, 20),
     flagDistribution,
   };
+}
+
+// ==================== DETAILED SUBMISSION ANALYSIS ====================
+
+/**
+ * Detailed analysis result for a single submission
+ * Includes all three categories: behavior, AI, and similarity
+ */
+export interface DetailedSubmissionAnalysis {
+  submissionId: string;
+  problemId: string;
+  problemTitle: string;
+  problemTitleRu: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  code: string;
+  submittedAt: Date;
+  status: string;
+
+  // Overall scores
+  overallCheatScore: number;
+  behaviorScore: number;
+  aiScore: number;
+  similarityScore: number;
+
+  // Detailed analysis
+  behaviorAnalysis: BehaviorAnalysisResult;
+  aiAnalysis: AIDetectionResult;
+  similarityAnalysis: {
+    hasSimilarSubmissions: boolean;
+    highestSimilarity: number;
+    similarStudents: {
+      studentId: string;
+      studentName: string;
+      similarity: number;
+    }[];
+  };
+}
+
+/**
+ * Generate detailed analysis for a submission
+ */
+export function analyzeSubmissionDetailed(
+  submission: Submission,
+  metadata: SubmissionMetadata | undefined,
+  problem: Problem,
+  allSubmissionsForProblem: Submission[],
+  studentMap: Map<string, Student>
+): DetailedSubmissionAnalysis {
+  // 1. Behavior analysis
+  const behaviorAnalysis = analyzeBehavior(metadata, submission.code, problem.difficulty);
+
+  // 2. AI detection
+  const aiAnalysis = detectAIPatterns(submission.code, problem.topicId);
+
+  // 3. Similarity analysis
+  const otherSubmissions = allSubmissionsForProblem.filter(
+    s => s.studentId !== submission.studentId && s.status === 'passed'
+  );
+
+  const uniqueness = getExpectedUniqueness(problem);
+  const thresholds = getSimilarityThresholds(uniqueness);
+
+  const similarStudents: { studentId: string; studentName: string; similarity: number }[] = [];
+  let highestSimilarity = 0;
+
+  for (const other of otherSubmissions) {
+    const comparison = compareSubmissions(submission.code, other.code);
+    if (comparison.similarityScore >= thresholds.highThreshold * 0.8) { // Show even slightly similar
+      const student = studentMap.get(other.studentId);
+      similarStudents.push({
+        studentId: other.studentId,
+        studentName: student?.name || 'Неизвестный',
+        similarity: comparison.similarityScore,
+      });
+      if (comparison.similarityScore > highestSimilarity) {
+        highestSimilarity = comparison.similarityScore;
+      }
+    }
+  }
+
+  // Sort by similarity descending
+  similarStudents.sort((a, b) => b.similarity - a.similarity);
+
+  // Calculate overall scores
+  const behaviorScore = behaviorAnalysis.overallScore;
+  const aiScore = aiAnalysis.confidence;
+  const similarityScore = highestSimilarity > thresholds.highThreshold
+    ? Math.round(highestSimilarity * thresholds.scoreMultiplier)
+    : 0;
+
+  // Combined score with weights: behavior 40%, AI 35%, similarity 25%
+  const overallCheatScore = Math.min(100, Math.round(
+    behaviorScore * 0.4 + aiScore * 0.35 + similarityScore * 0.25
+  ));
+
+  return {
+    submissionId: submission.id,
+    problemId: problem.id,
+    problemTitle: problem.title,
+    problemTitleRu: problem.titleRu,
+    difficulty: problem.difficulty,
+    code: submission.code,
+    submittedAt: submission.submittedAt,
+    status: submission.status,
+
+    overallCheatScore,
+    behaviorScore,
+    aiScore,
+    similarityScore,
+
+    behaviorAnalysis,
+    aiAnalysis,
+    similarityAnalysis: {
+      hasSimilarSubmissions: similarStudents.length > 0,
+      highestSimilarity,
+      similarStudents: similarStudents.slice(0, 5), // Top 5 similar
+    },
+  };
+}
+
+/**
+ * Get all solved problems for a student with detailed analysis
+ */
+export function getStudentSubmissionsWithAnalysis(
+  studentId: string,
+  submissions: Submission[],
+  problems: Problem[],
+  students: Student[],
+  metadata?: Map<string, SubmissionMetadata>
+): DetailedSubmissionAnalysis[] {
+  const studentMap = new Map(students.map(s => [s.id, s]));
+  const problemMap = new Map(problems.map(p => [p.id, p]));
+
+  // Group submissions by problem for similarity comparison
+  const submissionsByProblem = new Map<string, Submission[]>();
+  for (const sub of submissions) {
+    const list = submissionsByProblem.get(sub.problemId) || [];
+    list.push(sub);
+    submissionsByProblem.set(sub.problemId, list);
+  }
+
+  // Get student's passed submissions (one per problem, latest)
+  const studentSubmissions = submissions.filter(
+    s => s.studentId === studentId && s.status === 'passed'
+  );
+
+  // Keep only latest submission per problem
+  const latestByProblem = new Map<string, Submission>();
+  for (const sub of studentSubmissions) {
+    const existing = latestByProblem.get(sub.problemId);
+    if (!existing || new Date(sub.submittedAt) > new Date(existing.submittedAt)) {
+      latestByProblem.set(sub.problemId, sub);
+    }
+  }
+
+  // Analyze each submission
+  const results: DetailedSubmissionAnalysis[] = [];
+
+  for (const [problemId, submission] of latestByProblem) {
+    const problem = problemMap.get(problemId);
+    if (!problem) continue;
+
+    const allProblemSubmissions = submissionsByProblem.get(problemId) || [];
+    const subMetadata = metadata?.get(submission.id);
+
+    const analysis = analyzeSubmissionDetailed(
+      submission,
+      subMetadata,
+      problem,
+      allProblemSubmissions,
+      studentMap
+    );
+
+    results.push(analysis);
+  }
+
+  // Sort by cheat score descending
+  return results.sort((a, b) => b.overallCheatScore - a.overallCheatScore);
 }

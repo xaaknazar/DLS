@@ -12,6 +12,8 @@ import {
   generateStudentReport,
   generateCheatSummary,
   getExpectedUniqueness,
+  getStudentSubmissionsWithAnalysis,
+  DetailedSubmissionAnalysis,
 } from '@/lib/cheat-detection';
 import { Student, Submission, SubmissionWithCheatData } from '@/types';
 
@@ -65,8 +67,77 @@ export async function GET(request: NextRequest) {
       return analyzeSubmission(sub, undefined, problem, problemSubmissions);
     });
 
-    // If specific student requested
-    if (studentId) {
+    // If action is 'students' - return list of students with their cheat summary
+    if (action === 'students') {
+      const studentCheatData = filteredStudents.map(student => {
+        const studentSubmissions = analyzedSubmissions.filter(s => s.studentId === student.id);
+        const passedSubmissions = studentSubmissions.filter(s => s.status === 'passed');
+        const flaggedSubmissions = studentSubmissions.filter(s => (s.cheatFlags?.length || 0) > 0);
+
+        let totalCheatScore = 0;
+        let highSeverityCount = 0;
+
+        for (const sub of flaggedSubmissions) {
+          totalCheatScore += sub.cheatScore || 0;
+          if (sub.cheatFlags?.some(f => f.severity === 'high' || f.severity === 'critical')) {
+            highSeverityCount++;
+          }
+        }
+
+        return {
+          id: student.id,
+          name: student.name,
+          grade: student.grade,
+          solvedProblems: passedSubmissions.length,
+          flaggedSubmissions: flaggedSubmissions.length,
+          averageCheatScore: flaggedSubmissions.length > 0
+            ? Math.round(totalCheatScore / flaggedSubmissions.length)
+            : 0,
+          maxCheatScore: flaggedSubmissions.length > 0
+            ? Math.max(...flaggedSubmissions.map(s => s.cheatScore || 0))
+            : 0,
+          highSeverityCount,
+        };
+      });
+
+      // Sort by max cheat score descending
+      studentCheatData.sort((a, b) => b.maxCheatScore - a.maxCheatScore);
+
+      return NextResponse.json({
+        students: studentCheatData,
+        total: studentCheatData.length,
+      });
+    }
+
+    // If action is 'student-details' - return detailed analysis for specific student
+    if (action === 'student-details' && studentId) {
+      const targetStudent = students.find(s => s.id === studentId);
+      if (!targetStudent) {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+      }
+
+      // Get detailed analysis for all student's submissions
+      const detailedAnalysis = getStudentSubmissionsWithAnalysis(
+        studentId,
+        submissions,
+        problems,
+        students,
+        undefined // No metadata in database yet
+      );
+
+      return NextResponse.json({
+        student: {
+          id: targetStudent.id,
+          name: targetStudent.name,
+          grade: targetStudent.grade,
+        },
+        submissions: detailedAnalysis,
+        totalSubmissions: detailedAnalysis.length,
+      });
+    }
+
+    // If specific student requested (legacy)
+    if (studentId && !action) {
       const student = await getUserById(studentId);
       if (!student || student.role !== 'teacher' && student.role !== 'student') {
         // Check if it's a valid student
