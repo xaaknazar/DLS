@@ -179,7 +179,7 @@ export default function ProblemPage() {
           pasteCount: metadata.pasteCount,
           tabSwitchCount: metadata.tabSwitchCount,
         } : undefined,
-      } as any);
+      });
 
       if (allPassed && !isCompleted) {
         setEarnedPoints(problem.points);

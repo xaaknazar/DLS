@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
       if (!problem) return { ...sub, cheatFlags: [], cheatScore: 0 };
 
       const problemSubmissions = submissionsByProblem.get(sub.problemId) || [];
-      return analyzeSubmission(sub, undefined, problem, problemSubmissions);
+      // Use metadata from submission if available
+      return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions);
     });
 
     // If action is 'students' - return list of students with their cheat summary
@@ -116,13 +117,20 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Student not found' }, { status: 404 });
       }
 
+      // Build metadata map from submissions
+      const metadataMap = new Map(
+        submissions
+          .filter(s => s.metadata)
+          .map(s => [s.id, s.metadata!])
+      );
+
       // Get detailed analysis for all student's submissions
       const detailedAnalysis = getStudentSubmissionsWithAnalysis(
         studentId,
         submissions,
         problems,
         students,
-        undefined // No metadata in database yet
+        metadataMap
       );
 
       return NextResponse.json({
@@ -244,7 +252,8 @@ export async function POST(request: NextRequest) {
         if (!problem) return { ...sub, cheatFlags: [], cheatScore: 0 };
 
         const problemSubmissions = submissionsByProblem.get(sub.problemId) || [];
-        return analyzeSubmission(sub, undefined, problem, problemSubmissions);
+        // Use metadata from submission if available
+        return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions);
       });
 
       return NextResponse.json({

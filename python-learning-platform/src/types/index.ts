@@ -110,6 +110,7 @@ export interface Submission {
   totalTests: number;
   executionTime: number;
   submittedAt: Date;
+  metadata?: SubmissionMetadata; // Behavior tracking for cheat detection
 }
 
 // Progress types

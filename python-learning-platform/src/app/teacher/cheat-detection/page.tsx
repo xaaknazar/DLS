@@ -134,13 +134,51 @@ function AICategory({
   );
 }
 
+// Tab types for submission detail
+type SubmissionTab = 'overview' | 'similarity' | 'ai' | 'behavior';
+
+// Tab button component
+function TabButton({
+  active,
+  onClick,
+  children,
+  icon: Icon,
+  score,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  icon: React.ElementType;
+  score?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+        active
+          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+          : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      <span>{children}</span>
+      {score !== undefined && (
+        <span className={`ml-1 text-sm font-bold ${getScoreColor(score)}`}>
+          {score}
+        </span>
+      )}
+    </button>
+  );
+}
+
 // Detailed submission view component
 function SubmissionDetail({ analysis }: { analysis: DetailedSubmissionAnalysis }) {
   const [showCode, setShowCode] = useState(false);
+  const [activeTab, setActiveTab] = useState<SubmissionTab>('overview');
   const { behaviorAnalysis, aiAnalysis, similarityAnalysis } = analysis;
 
   return (
-    <div className="space-y-6 p-4 bg-gray-900/50 rounded-lg">
+    <div className="space-y-4 p-4 bg-gray-900/50 rounded-lg">
       {/* Header with scores */}
       <div className="flex flex-wrap gap-4 items-center justify-between">
         <div>
@@ -149,177 +187,321 @@ function SubmissionDetail({ analysis }: { analysis: DetailedSubmissionAnalysis }
             Сложность: {analysis.difficulty === 'easy' ? 'Легко' : analysis.difficulty === 'medium' ? 'Средне' : 'Сложно'}
           </p>
         </div>
-        <div className="flex gap-4">
-          <div className="text-center px-4 py-2 bg-gray-800 rounded-lg">
-            <p className="text-xs text-gray-400">Поведение</p>
-            <p className={`text-xl font-bold ${getScoreColor(analysis.behaviorScore)}`}>
-              {analysis.behaviorScore}
-            </p>
-          </div>
-          <div className="text-center px-4 py-2 bg-gray-800 rounded-lg">
-            <p className="text-xs text-gray-400">ИИ</p>
-            <p className={`text-xl font-bold ${getScoreColor(analysis.aiScore)}`}>
-              {analysis.aiScore}
-            </p>
-          </div>
-          <div className="text-center px-4 py-2 bg-gray-800 rounded-lg">
-            <p className="text-xs text-gray-400">Сходство</p>
-            <p className={`text-xl font-bold ${getScoreColor(analysis.similarityScore)}`}>
-              {analysis.similarityScore}
-            </p>
-          </div>
+        <div className="flex items-center gap-2">
           <div className="text-center px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg">
-            <p className="text-xs text-blue-400">Общий</p>
-            <p className={`text-xl font-bold ${getScoreColor(analysis.overallCheatScore)}`}>
+            <p className="text-xs text-blue-400">Общий балл</p>
+            <p className={`text-2xl font-bold ${getScoreColor(analysis.overallCheatScore)}`}>
               {analysis.overallCheatScore}
             </p>
           </div>
         </div>
       </div>
 
-      {/* 1. Behavior Analysis */}
-      <div>
-        <h5 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
-          <Clock className="w-5 h-5 text-blue-400" />
-          Анализ поведения
-        </h5>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <BehaviorIndicator
-            label="Время решения"
-            value={behaviorAnalysis.timing.timeSpent ? `${behaviorAnalysis.timing.timeSpent}с` : null}
-            suspicious={behaviorAnalysis.timing.suspicious}
-            severity={behaviorAnalysis.timing.severity}
-            icon={Clock}
-            description={behaviorAnalysis.timing.descriptionRu}
-          />
-          <BehaviorIndicator
-            label="Нажатия клавиш"
-            value={behaviorAnalysis.keystrokes.count}
-            suspicious={behaviorAnalysis.keystrokes.suspicious}
-            severity={behaviorAnalysis.keystrokes.severity}
-            icon={Keyboard}
-            description={behaviorAnalysis.keystrokes.descriptionRu}
-          />
-          <BehaviorIndicator
-            label="События вставки"
-            value={behaviorAnalysis.pasteEvents.count}
-            suspicious={behaviorAnalysis.pasteEvents.suspicious}
-            severity={behaviorAnalysis.pasteEvents.severity}
-            icon={Copy}
-            description={behaviorAnalysis.pasteEvents.descriptionRu}
-          />
-          <BehaviorIndicator
-            label="Смена вкладок"
-            value={behaviorAnalysis.tabSwitches.count}
-            suspicious={behaviorAnalysis.tabSwitches.suspicious}
-            severity={behaviorAnalysis.tabSwitches.severity}
-            icon={ExternalLink}
-            description={behaviorAnalysis.tabSwitches.descriptionRu}
-          />
-        </div>
+      {/* Tabbed navigation */}
+      <div className="flex flex-wrap gap-2 border-b border-gray-700 pb-3">
+        <TabButton
+          active={activeTab === 'overview'}
+          onClick={() => setActiveTab('overview')}
+          icon={ShieldAlert}
+        >
+          Обзор
+        </TabButton>
+        <TabButton
+          active={activeTab === 'behavior'}
+          onClick={() => setActiveTab('behavior')}
+          icon={Clock}
+          score={analysis.behaviorScore}
+        >
+          Поведение
+        </TabButton>
+        <TabButton
+          active={activeTab === 'ai'}
+          onClick={() => setActiveTab('ai')}
+          icon={Bot}
+          score={analysis.aiScore}
+        >
+          ИИ
+        </TabButton>
+        <TabButton
+          active={activeTab === 'similarity'}
+          onClick={() => setActiveTab('similarity')}
+          icon={Users}
+          score={analysis.similarityScore}
+        >
+          Сходство
+        </TabButton>
       </div>
 
-      {/* 2. AI Detection */}
-      <div>
-        <h5 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
-          <Bot className="w-5 h-5 text-purple-400" />
-          Обнаружение признаков ИИ
-          {aiAnalysis.isLikelyAI && (
-            <Badge variant="danger">Вероятно ИИ</Badge>
-          )}
-        </h5>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <AICategory
-            label="List/Dict Comprehensions"
-            detected={aiAnalysis.categories.comprehensions.detected}
-            patterns={aiAnalysis.categories.comprehensions.patterns}
-            score={aiAnalysis.categories.comprehensions.score}
-            icon={Code}
-          />
-          <AICategory
-            label="Type Hints (аннотации типов)"
-            detected={aiAnalysis.categories.typeHints.detected}
-            patterns={aiAnalysis.categories.typeHints.patterns}
-            score={aiAnalysis.categories.typeHints.score}
-            icon={FileCode}
-          />
-          <AICategory
-            label="Декораторы (@)"
-            detected={aiAnalysis.categories.decorators.detected}
-            patterns={aiAnalysis.categories.decorators.patterns}
-            score={aiAnalysis.categories.decorators.score}
-            icon={Wand2}
-          />
-          <AICategory
-            label="Идеальное форматирование"
-            detected={aiAnalysis.categories.formatting.detected}
-            patterns={aiAnalysis.categories.formatting.patterns}
-            score={aiAnalysis.categories.formatting.score}
-            icon={Sparkles}
-          />
-          <AICategory
-            label="Английские комментарии"
-            detected={aiAnalysis.categories.englishComments.detected}
-            patterns={aiAnalysis.categories.englishComments.patterns}
-            score={aiAnalysis.categories.englishComments.score}
-            icon={MessageSquare}
-          />
-          <AICategory
-            label="Конструкции не по теме"
-            detected={aiAnalysis.categories.advancedConstructs.detected}
-            patterns={aiAnalysis.categories.advancedConstructs.patterns}
-            score={aiAnalysis.categories.advancedConstructs.score}
-            icon={AlertTriangle}
-          />
-        </div>
-      </div>
-
-      {/* 3. Code Similarity */}
-      <div>
-        <h5 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
-          <Users className="w-5 h-5 text-orange-400" />
-          Сходство кода с другими учениками
-        </h5>
-        {similarityAnalysis.hasSimilarSubmissions ? (
-          <div className="space-y-2">
-            {similarityAnalysis.similarStudents.map((similar, idx) => (
+      {/* Tab content */}
+      <div className="min-h-[200px]">
+        {/* Overview tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-4">
+            {/* Summary scores */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div
-                key={idx}
-                className={`flex items-center justify-between p-3 rounded-lg border ${
-                  similar.similarity >= 90 ? 'bg-red-500/10 border-red-500/30' :
-                  similar.similarity >= 80 ? 'bg-orange-500/10 border-orange-500/30' :
-                  'bg-yellow-500/10 border-yellow-500/30'
+                className={`p-4 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${
+                  analysis.behaviorScore >= 40 ? 'bg-red-500/10 border-red-500/30' : 'bg-gray-800/50 border-gray-700'
                 }`}
+                onClick={() => setActiveTab('behavior')}
               >
-                <div className="flex items-center gap-3">
-                  <User className="w-4 h-4 text-gray-400" />
-                  <span className="text-white">{similar.studentName}</span>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-5 h-5 text-blue-400" />
+                  <span className="font-medium text-white">Поведение</span>
                 </div>
-                <span className={`font-bold ${
-                  similar.similarity >= 90 ? 'text-red-400' :
-                  similar.similarity >= 80 ? 'text-orange-400' : 'text-yellow-400'
-                }`}>
-                  {similar.similarity}% сходство
-                </span>
+                <p className={`text-3xl font-bold ${getScoreColor(analysis.behaviorScore)}`}>
+                  {analysis.behaviorScore}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {behaviorAnalysis.timing.timeSpent ? `${behaviorAnalysis.timing.timeSpent}с` : 'Нет данных'} •
+                  {behaviorAnalysis.keystrokes.count ?? '—'} клавиш •
+                  {behaviorAnalysis.pasteEvents.count ?? '—'} вставок
+                </p>
               </div>
-            ))}
+
+              <div
+                className={`p-4 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${
+                  analysis.aiScore >= 40 ? 'bg-red-500/10 border-red-500/30' : 'bg-gray-800/50 border-gray-700'
+                }`}
+                onClick={() => setActiveTab('ai')}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Bot className="w-5 h-5 text-purple-400" />
+                  <span className="font-medium text-white">ИИ</span>
+                  {aiAnalysis.isLikelyAI && (
+                    <Badge variant="danger">Вероятно ИИ</Badge>
+                  )}
+                </div>
+                <p className={`text-3xl font-bold ${getScoreColor(analysis.aiScore)}`}>
+                  {analysis.aiScore}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {aiAnalysis.patterns.length > 0
+                    ? aiAnalysis.patterns.slice(0, 2).join(', ')
+                    : 'Паттернов не обнаружено'}
+                </p>
+              </div>
+
+              <div
+                className={`p-4 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${
+                  analysis.similarityScore >= 40 ? 'bg-red-500/10 border-red-500/30' : 'bg-gray-800/50 border-gray-700'
+                }`}
+                onClick={() => setActiveTab('similarity')}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-5 h-5 text-orange-400" />
+                  <span className="font-medium text-white">Сходство</span>
+                </div>
+                <p className={`text-3xl font-bold ${getScoreColor(analysis.similarityScore)}`}>
+                  {analysis.similarityScore}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {similarityAnalysis.hasSimilarSubmissions
+                    ? `${similarityAnalysis.similarStudents.length} похожих решений`
+                    : 'Похожих решений нет'}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick alerts */}
+            {(analysis.behaviorScore >= 40 || analysis.aiScore >= 40 || analysis.similarityScore >= 40) && (
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                <h5 className="text-yellow-400 font-medium mb-2 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Обнаружены подозрительные признаки
+                </h5>
+                <ul className="text-sm text-gray-300 space-y-1">
+                  {analysis.behaviorScore >= 40 && (
+                    <li>• Подозрительное поведение при решении</li>
+                  )}
+                  {analysis.aiScore >= 40 && (
+                    <li>• Признаки использования ИИ</li>
+                  )}
+                  {analysis.similarityScore >= 40 && (
+                    <li>• Высокое сходство с другими решениями</li>
+                  )}
+                </ul>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <span className="text-green-400">Похожих решений не найдено</span>
+        )}
+
+        {/* Behavior tab */}
+        {activeTab === 'behavior' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              <BehaviorIndicator
+                label="Время решения"
+                value={behaviorAnalysis.timing.timeSpent ? `${behaviorAnalysis.timing.timeSpent}с` : null}
+                suspicious={behaviorAnalysis.timing.suspicious}
+                severity={behaviorAnalysis.timing.severity}
+                icon={Clock}
+                description={behaviorAnalysis.timing.descriptionRu}
+              />
+              <BehaviorIndicator
+                label="Нажатия клавиш"
+                value={behaviorAnalysis.keystrokes.count}
+                suspicious={behaviorAnalysis.keystrokes.suspicious}
+                severity={behaviorAnalysis.keystrokes.severity}
+                icon={Keyboard}
+                description={behaviorAnalysis.keystrokes.descriptionRu}
+              />
+              <BehaviorIndicator
+                label="События вставки"
+                value={behaviorAnalysis.pasteEvents.count}
+                suspicious={behaviorAnalysis.pasteEvents.suspicious}
+                severity={behaviorAnalysis.pasteEvents.severity}
+                icon={Copy}
+                description={behaviorAnalysis.pasteEvents.descriptionRu}
+              />
+              <BehaviorIndicator
+                label="Смена вкладок"
+                value={behaviorAnalysis.tabSwitches.count}
+                suspicious={behaviorAnalysis.tabSwitches.suspicious}
+                severity={behaviorAnalysis.tabSwitches.severity}
+                icon={ExternalLink}
+                description={behaviorAnalysis.tabSwitches.descriptionRu}
+              />
+            </div>
+
+            {/* Behavior explanation */}
+            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+              <h5 className="text-white font-medium mb-2">Как интерпретировать данные</h5>
+              <ul className="text-sm text-gray-400 space-y-1">
+                <li>• <span className="text-blue-400">Время решения</span> — слишком быстрое решение может указывать на копирование</li>
+                <li>• <span className="text-blue-400">Нажатия клавиш</span> — мало нажатий для объёма кода = вероятно копирование</li>
+                <li>• <span className="text-blue-400">События вставки</span> — много Ctrl+V может указывать на копирование извне</li>
+                <li>• <span className="text-blue-400">Смена вкладок</span> — частые переключения могут означать поиск ответа</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* AI tab */}
+        {activeTab === 'ai' && (
+          <div className="space-y-4">
+            {aiAnalysis.isLikelyAI && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-center gap-3">
+                <Bot className="w-6 h-6 text-red-400" />
+                <div>
+                  <p className="text-red-400 font-medium">Вероятно использован ИИ</p>
+                  <p className="text-sm text-gray-400">Обнаружены паттерны, характерные для ИИ-генерируемого кода</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <AICategory
+                label="List/Dict Comprehensions"
+                detected={aiAnalysis.categories.comprehensions.detected}
+                patterns={aiAnalysis.categories.comprehensions.patterns}
+                score={aiAnalysis.categories.comprehensions.score}
+                icon={Code}
+              />
+              <AICategory
+                label="Type Hints (аннотации типов)"
+                detected={aiAnalysis.categories.typeHints.detected}
+                patterns={aiAnalysis.categories.typeHints.patterns}
+                score={aiAnalysis.categories.typeHints.score}
+                icon={FileCode}
+              />
+              <AICategory
+                label="Декораторы (@)"
+                detected={aiAnalysis.categories.decorators.detected}
+                patterns={aiAnalysis.categories.decorators.patterns}
+                score={aiAnalysis.categories.decorators.score}
+                icon={Wand2}
+              />
+              <AICategory
+                label="Идеальное форматирование"
+                detected={aiAnalysis.categories.formatting.detected}
+                patterns={aiAnalysis.categories.formatting.patterns}
+                score={aiAnalysis.categories.formatting.score}
+                icon={Sparkles}
+              />
+              <AICategory
+                label="Английские комментарии"
+                detected={aiAnalysis.categories.englishComments.detected}
+                patterns={aiAnalysis.categories.englishComments.patterns}
+                score={aiAnalysis.categories.englishComments.score}
+                icon={MessageSquare}
+              />
+              <AICategory
+                label="Конструкции не по теме"
+                detected={aiAnalysis.categories.advancedConstructs.detected}
+                patterns={aiAnalysis.categories.advancedConstructs.patterns}
+                score={aiAnalysis.categories.advancedConstructs.score}
+                icon={AlertTriangle}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Similarity tab */}
+        {activeTab === 'similarity' && (
+          <div className="space-y-4">
+            {similarityAnalysis.hasSimilarSubmissions ? (
+              <>
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+                  <p className="text-orange-400 font-medium">
+                    Найдено {similarityAnalysis.similarStudents.length} похожих решений
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Максимальное сходство: {similarityAnalysis.highestSimilarity.toFixed(1)}%
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {similarityAnalysis.similarStudents.map((similar, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${
+                        similar.similarity >= 90 ? 'bg-red-500/10 border-red-500/30' :
+                        similar.similarity >= 80 ? 'bg-orange-500/10 border-orange-500/30' :
+                        'bg-yellow-500/10 border-yellow-500/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center">
+                          <User className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <span className="text-white font-medium">{similar.studentName}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-2xl font-bold ${
+                          similar.similarity >= 90 ? 'text-red-400' :
+                          similar.similarity >= 80 ? 'text-orange-400' : 'text-yellow-400'
+                        }`}>
+                          {similar.similarity.toFixed(1)}%
+                        </span>
+                        <p className="text-xs text-gray-400">сходство</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle className="w-8 h-8 text-green-400" />
+                </div>
+                <p className="text-green-400 font-medium text-lg">Похожих решений не найдено</p>
+                <p className="text-gray-400 text-sm mt-1">Код уникален по сравнению с другими учениками</p>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Code preview toggle */}
-      <div>
+      <div className="border-t border-gray-700 pt-4">
         <button
           onClick={() => setShowCode(!showCode)}
           className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
         >
           {showCode ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          {showCode ? 'Скрыть код' : 'Показать код'}
+          <Code className="w-4 h-4" />
+          {showCode ? 'Скрыть код' : 'Показать код решения'}
         </button>
         {showCode && (
           <pre className="mt-3 bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm text-gray-300 max-h-64 overflow-y-auto border border-gray-700">
