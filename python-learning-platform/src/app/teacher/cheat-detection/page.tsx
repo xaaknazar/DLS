@@ -384,9 +384,9 @@ export default function CheatDetectionPage() {
                                     <Icon className={`w-4 h-4 ${config?.color}`} />
                                     <span className="font-medium">{config?.label}</span>
                                     <Badge variant={
-                                      flag.severity === 'critical' ? 'red' :
-                                      flag.severity === 'high' ? 'orange' :
-                                      flag.severity === 'medium' ? 'yellow' : 'gray'
+                                      flag.severity === 'critical' ? 'danger' :
+                                      flag.severity === 'high' ? 'danger' :
+                                      flag.severity === 'medium' ? 'warning' : 'default'
                                     }>
                                       {flag.confidence}% уверенность
                                     </Badge>
