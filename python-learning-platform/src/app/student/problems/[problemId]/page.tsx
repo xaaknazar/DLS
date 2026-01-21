@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { Student, TestResult, Problem, Topic } from '@/types';
+import { Student, TestResult, Problem, Topic, SubmissionMetadata } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -113,7 +113,7 @@ export default function ProblemPage() {
   const isTopicLocked = topic?.isLocked || false;
 
   // Run code callback - must be before any conditional returns
-  const runCode = useCallback(async (code: string) => {
+  const runCode = useCallback(async (code: string, metadata?: SubmissionMetadata) => {
     if (!problem || !student) return;
 
     // Check if topic is locked
@@ -161,7 +161,7 @@ export default function ProblemPage() {
     const allPassed = results.every((r) => r.passed);
     const passedCount = results.filter((r) => r.passed).length;
 
-    // Create submission via API
+    // Create submission via API with metadata for cheat detection
     try {
       await createSubmission({
         problemId: problem.id,
@@ -172,6 +172,13 @@ export default function ProblemPage() {
         passedTests: passedCount,
         totalTests: results.length,
         executionTime: results.reduce((sum, r) => sum + r.executionTime, 0),
+        metadata: metadata ? {
+          startedAt: metadata.startedAt,
+          timeSpentSeconds: metadata.timeSpentSeconds,
+          keystrokeCount: metadata.keystrokeCount,
+          pasteCount: metadata.pasteCount,
+          tabSwitchCount: metadata.tabSwitchCount,
+        } : undefined,
       } as any);
 
       if (allPassed && !isCompleted) {

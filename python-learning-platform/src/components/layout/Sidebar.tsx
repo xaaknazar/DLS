@@ -20,6 +20,7 @@ import {
   MessageCircle,
   ShoppingBag,
   Bell,
+  ShieldAlert,
 } from 'lucide-react';
 
 const studentNavItems = [
@@ -38,6 +39,7 @@ const teacherNavItems = [
   { href: '/teacher/students', label: 'Ученики', icon: Users },
   { href: '/teacher/students/manage', label: 'Управление', icon: UserCog },
   { href: '/teacher/analytics', label: 'Аналитика', icon: BarChart3 },
+  { href: '/teacher/cheat-detection', label: 'Античит', icon: ShieldAlert },
   { href: '/teacher/content', label: 'Контент', icon: BookOpen },
   { href: '/teacher/announcements', label: 'Объявления', icon: Bell },
   { href: '/teacher/chat', label: 'Сообщения', icon: MessageCircle },

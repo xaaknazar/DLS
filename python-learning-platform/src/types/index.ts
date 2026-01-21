@@ -178,3 +178,113 @@ export interface Announcement {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// ==================== CHEAT DETECTION TYPES ====================
+
+// Types of suspicious activity flags
+export type CheatFlagType =
+  | 'code_similarity'      // Code is very similar to another student's
+  | 'fast_solution'        // Solved too quickly for difficulty level
+  | 'copy_paste'           // Detected copy-paste behavior
+  | 'advanced_code'        // Uses constructs not yet taught
+  | 'style_mismatch'       // Sudden change in coding style
+  | 'ai_patterns'          // Patterns suggesting AI-generated code
+  | 'english_comments'     // English comments when learning in Russian
+  | 'perfect_format';      // Suspiciously perfect formatting
+
+// Severity levels for flags
+export type CheatSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+// A single cheat flag on a submission
+export interface CheatFlag {
+  type: CheatFlagType;
+  severity: CheatSeverity;
+  description: string;
+  descriptionRu: string;
+  confidence: number; // 0-100 percentage
+  details?: {
+    similarStudentId?: string;
+    similarSubmissionId?: string;
+    similarityScore?: number;
+    expectedTime?: number;
+    actualTime?: number;
+    flaggedPatterns?: string[];
+  };
+}
+
+// Metadata collected during code submission
+export interface SubmissionMetadata {
+  // Timing data
+  startedAt?: Date;           // When student started working on problem
+  timeSpentSeconds?: number;  // Time spent before submission
+  keystrokeCount?: number;    // Number of keystrokes (if tracked)
+  pasteCount?: number;        // Number of paste events
+
+  // Code changes tracking
+  codeSnapshots?: {
+    timestamp: Date;
+    code: string;
+  }[];
+
+  // Browser/environment info
+  userAgent?: string;
+  tabSwitchCount?: number;    // Times switched away from tab
+}
+
+// Extended submission with cheat detection data
+export interface SubmissionWithCheatData extends Submission {
+  metadata?: SubmissionMetadata;
+  cheatFlags?: CheatFlag[];
+  cheatScore?: number;        // Overall suspicion score 0-100
+  reviewedByTeacher?: boolean;
+  reviewedAt?: Date;
+  reviewNotes?: string;
+}
+
+// Code similarity match between two submissions
+export interface SimilarityMatch {
+  submissionId1: string;
+  submissionId2: string;
+  studentId1: string;
+  studentId2: string;
+  problemId: string;
+  similarityScore: number;    // 0-100 percentage
+  matchedTokens: number;
+  totalTokens: number;
+  flaggedAt: Date;
+}
+
+// Aggregated cheat report for a student
+export interface StudentCheatReport {
+  studentId: string;
+  studentName: string;
+  grade: number;
+  totalFlags: number;
+  flagsByType: Record<CheatFlagType, number>;
+  averageCheatScore: number;
+  highSeverityCount: number;
+  recentFlags: {
+    submissionId: string;
+    problemId: string;
+    problemTitle: string;
+    flags: CheatFlag[];
+    submittedAt: Date;
+  }[];
+  similarityMatches: SimilarityMatch[];
+}
+
+// Dashboard summary for teacher
+export interface CheatDetectionSummary {
+  totalSuspiciousSubmissions: number;
+  totalHighSeverity: number;
+  studentsWithFlags: number;
+  topFlaggedStudents: {
+    studentId: string;
+    studentName: string;
+    grade: number;
+    flagCount: number;
+    averageScore: number;
+  }[];
+  recentSimilarityMatches: SimilarityMatch[];
+  flagDistribution: Record<CheatFlagType, number>;
+}
