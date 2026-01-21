@@ -44,7 +44,15 @@ interface EnrichedSubmission extends SubmissionWithCheatData {
   studentGrade: number;
   problemTitle: string;
   problemDifficulty: string;
+  problemUniqueness?: 'low' | 'medium' | 'high';
 }
+
+// Uniqueness labels for UI
+const UNIQUENESS_CONFIG = {
+  low: { label: 'Простая задача', color: 'text-blue-400', hint: 'Высокое сходство ожидаемо' },
+  medium: { label: 'Умеренная', color: 'text-yellow-400', hint: 'Возможны вариации в решениях' },
+  high: { label: 'Сложная', color: 'text-green-400', hint: 'Много разных подходов' },
+};
 
 interface ComparisonData {
   submission1: { id: string; studentId: string; code: string };
@@ -333,7 +341,14 @@ export default function CheatDetectionPage() {
                           <p className="text-gray-500 text-sm">{submission.studentGrade} класс</p>
                         </div>
                         <div className="text-left">
-                          <p className="text-gray-300">{submission.problemTitle}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-gray-300">{submission.problemTitle}</p>
+                            {submission.problemUniqueness === 'low' && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30" title="Высокое сходство ожидаемо для этой задачи">
+                                Простая
+                              </span>
+                            )}
+                          </div>
                           <div className="flex gap-2 mt-1">
                             {submission.cheatFlags?.slice(0, 3).map((flag, idx) => (
                               <span
@@ -371,6 +386,32 @@ export default function CheatDetectionPage() {
 
                     {expandedSubmission === submission.id && (
                       <div className="p-4 border-t border-gray-700 space-y-4">
+                        {/* Problem uniqueness info */}
+                        {submission.problemUniqueness && (
+                          <div className={`p-3 rounded-lg border ${
+                            submission.problemUniqueness === 'low'
+                              ? 'bg-blue-500/10 border-blue-500/30'
+                              : submission.problemUniqueness === 'medium'
+                              ? 'bg-yellow-500/10 border-yellow-500/30'
+                              : 'bg-green-500/10 border-green-500/30'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-medium ${UNIQUENESS_CONFIG[submission.problemUniqueness].color}`}>
+                                {UNIQUENESS_CONFIG[submission.problemUniqueness].label}
+                              </span>
+                              <span className="text-gray-400 text-sm">—</span>
+                              <span className="text-gray-400 text-sm">
+                                {UNIQUENESS_CONFIG[submission.problemUniqueness].hint}
+                              </span>
+                            </div>
+                            {submission.problemUniqueness === 'low' && (
+                              <p className="text-gray-400 text-sm mt-1">
+                                Для этой задачи порог сходства повышен, т.к. все правильные решения похожи
+                              </p>
+                            )}
+                          </div>
+                        )}
+
                         {/* Flags list */}
                         <div>
                           <h4 className="text-sm font-medium text-gray-400 mb-2">Обнаруженные проблемы:</h4>

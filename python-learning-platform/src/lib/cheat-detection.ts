@@ -15,7 +15,86 @@ import {
   CheatDetectionSummary,
   Problem,
   Student,
+  SolutionUniqueness,
 } from '@/types';
+
+// ==================== SOLUTION UNIQUENESS ====================
+
+/**
+ * Determine expected solution uniqueness for a problem
+ * If not set on the problem, auto-detect based on solution characteristics
+ */
+export function getExpectedUniqueness(problem: Problem): SolutionUniqueness {
+  // Use explicit setting if available
+  if (problem.expectedUniqueness) {
+    return problem.expectedUniqueness;
+  }
+
+  // Auto-detect based on solution characteristics
+  const solution = problem.solution;
+  const lines = solution.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
+  const codeLength = solution.replace(/\s+/g, '').length;
+
+  // Very short solutions (< 50 chars or < 3 lines) are likely trivial
+  if (codeLength < 50 || lines.length < 3) {
+    return 'low';
+  }
+
+  // Short solutions (< 100 chars or < 5 lines) have medium uniqueness
+  if (codeLength < 100 || lines.length < 5) {
+    return 'medium';
+  }
+
+  // Check for task complexity indicators
+  const hasLoops = /\b(for|while)\b/.test(solution);
+  const hasFunctions = /\bdef\s+\w+/.test(solution);
+  const hasConditions = /\bif\b/.test(solution);
+  const hasDataStructures = /\b(list|dict|set)\s*\(/.test(solution) || /\[.+\]/.test(solution);
+
+  // Count complexity indicators
+  const complexityScore = [hasLoops, hasFunctions, hasConditions, hasDataStructures]
+    .filter(Boolean).length;
+
+  if (complexityScore >= 3) {
+    return 'high';
+  } else if (complexityScore >= 1) {
+    return 'medium';
+  }
+
+  return 'medium';
+}
+
+/**
+ * Get similarity thresholds based on expected uniqueness
+ */
+export function getSimilarityThresholds(uniqueness: SolutionUniqueness): {
+  criticalThreshold: number;
+  highThreshold: number;
+  scoreMultiplier: number;
+} {
+  switch (uniqueness) {
+    case 'low':
+      // For trivial tasks, only flag exact copies
+      return {
+        criticalThreshold: 98,  // Almost exact copy
+        highThreshold: 95,      // Very high similarity
+        scoreMultiplier: 0.3,   // Reduce cheat score impact
+      };
+    case 'medium':
+      return {
+        criticalThreshold: 92,
+        highThreshold: 80,
+        scoreMultiplier: 0.7,
+      };
+    case 'high':
+    default:
+      return {
+        criticalThreshold: 90,
+        highThreshold: 75,
+        scoreMultiplier: 1.0,
+      };
+  }
+}
 
 // ==================== CODE TOKENIZATION ====================
 
@@ -213,13 +292,16 @@ export function compareSubmissions(code1: string, code2: string): {
 
 /**
  * Find all similar submissions for a problem
+ * Uses dynamic thresholds based on problem uniqueness
  */
 export function findSimilarSubmissions(
   submissions: Submission[],
-  threshold: number = 70 // Default 70% similarity threshold
+  problems: Problem[],
+  defaultThreshold: number = 70 // Default 70% similarity threshold
 ): SimilarityMatch[] {
   const matches: SimilarityMatch[] = [];
   const passedSubmissions = submissions.filter(s => s.status === 'passed');
+  const problemMap = new Map(problems.map(p => [p.id, p]));
 
   // Group by problem
   const byProblem = new Map<string, Submission[]>();
@@ -231,6 +313,17 @@ export function findSimilarSubmissions(
 
   // Compare within each problem
   for (const [problemId, problemSubmissions] of byProblem) {
+    // Get problem-specific threshold
+    const problem = problemMap.get(problemId);
+    let threshold = defaultThreshold;
+
+    if (problem) {
+      const uniqueness = getExpectedUniqueness(problem);
+      const thresholds = getSimilarityThresholds(uniqueness);
+      // Use high threshold as minimum for flagging similarity
+      threshold = thresholds.highThreshold;
+    }
+
     // Only keep one submission per student (latest)
     const byStudent = new Map<string, Submission>();
     for (const sub of problemSubmissions) {
@@ -459,6 +552,10 @@ export function analyzeSubmission(
   const flags: CheatFlag[] = [];
   let totalScore = 0;
 
+  // Get expected uniqueness and thresholds for this problem
+  const uniqueness = getExpectedUniqueness(problem);
+  const thresholds = getSimilarityThresholds(uniqueness);
+
   // 1. Check similarity with other submissions
   const otherSubmissions = allSubmissionsForProblem.filter(
     s => s.studentId !== submission.studentId && s.status === 'passed'
@@ -467,10 +564,13 @@ export function analyzeSubmission(
   for (const other of otherSubmissions) {
     const comparison = compareSubmissions(submission.code, other.code);
 
-    if (comparison.similarityScore >= 90) {
+    // Use dynamic thresholds based on problem uniqueness
+    if (comparison.similarityScore >= thresholds.criticalThreshold) {
+      // For low uniqueness tasks, even critical similarity is lower severity
+      const severity: CheatSeverity = uniqueness === 'low' ? 'medium' : 'critical';
       flags.push({
         type: 'code_similarity',
-        severity: 'critical',
+        severity,
         description: `Code is ${comparison.similarityScore}% similar to another student`,
         descriptionRu: `Код на ${comparison.similarityScore}% похож на код другого студента`,
         confidence: comparison.similarityScore,
@@ -480,11 +580,16 @@ export function analyzeSubmission(
           similarityScore: comparison.similarityScore,
         },
       });
-      totalScore += 40;
-    } else if (comparison.similarityScore >= 75) {
+      totalScore += 40 * thresholds.scoreMultiplier;
+    } else if (comparison.similarityScore >= thresholds.highThreshold) {
+      // For low uniqueness tasks, skip high similarity flags entirely
+      if (uniqueness === 'low') {
+        continue;
+      }
+      const severity: CheatSeverity = uniqueness === 'medium' ? 'medium' : 'high';
       flags.push({
         type: 'code_similarity',
-        severity: 'high',
+        severity,
         description: `Code is ${comparison.similarityScore}% similar to another student`,
         descriptionRu: `Код на ${comparison.similarityScore}% похож на код другого студента`,
         confidence: comparison.similarityScore,
@@ -494,7 +599,7 @@ export function analyzeSubmission(
           similarityScore: comparison.similarityScore,
         },
       });
-      totalScore += 25;
+      totalScore += 25 * thresholds.scoreMultiplier;
     }
   }
 

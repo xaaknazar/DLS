@@ -62,6 +62,12 @@ export interface TestCase {
   description?: string;
 }
 
+// Expected solution uniqueness level for cheat detection
+// 'low' - Simple task, all correct solutions will be very similar (e.g., "Hello World")
+// 'medium' - Moderate variations expected (default)
+// 'high' - Many different approaches possible
+export type SolutionUniqueness = 'low' | 'medium' | 'high';
+
 export interface Problem {
   id: string;
   topicId: string;
@@ -77,6 +83,7 @@ export interface Problem {
   hints: string[];
   testCases: TestCase[];
   grades: number[]; // Now supports multiple grades
+  expectedUniqueness?: SolutionUniqueness; // For cheat detection - if not set, auto-detected from solution length
 }
 
 // Submission types

@@ -11,6 +11,7 @@ import {
   analyzeSubmission,
   generateStudentReport,
   generateCheatSummary,
+  getExpectedUniqueness,
 } from '@/lib/cheat-detection';
 import { Student, Submission, SubmissionWithCheatData } from '@/types';
 
@@ -43,8 +44,8 @@ export async function GET(request: NextRequest) {
       ? submissions.filter(s => studentIds.has(s.studentId))
       : submissions;
 
-    // Find similarity matches
-    const similarityMatches = findSimilarSubmissions(filteredSubmissions, threshold);
+    // Find similarity matches (now uses problem-specific thresholds)
+    const similarityMatches = findSimilarSubmissions(filteredSubmissions, problems, threshold);
 
     // Analyze all submissions
     const problemMap = new Map(problems.map(p => [p.id, p]));
@@ -101,13 +102,18 @@ export async function GET(request: NextRequest) {
       // Enrich with student and problem info
       const studentMap = new Map(students.map(s => [s.id, s]));
 
-      const enrichedSubmissions = flaggedSubmissions.map(sub => ({
-        ...sub,
-        studentName: studentMap.get(sub.studentId)?.name || 'Unknown',
-        studentGrade: studentMap.get(sub.studentId)?.grade || 0,
-        problemTitle: problemMap.get(sub.problemId)?.titleRu || sub.problemId,
-        problemDifficulty: problemMap.get(sub.problemId)?.difficulty || 'medium',
-      }));
+      const enrichedSubmissions = flaggedSubmissions.map(sub => {
+        const problem = problemMap.get(sub.problemId);
+        return {
+          ...sub,
+          studentName: studentMap.get(sub.studentId)?.name || 'Unknown',
+          studentGrade: studentMap.get(sub.studentId)?.grade || 0,
+          problemTitle: problem?.titleRu || sub.problemId,
+          problemDifficulty: problem?.difficulty || 'medium',
+          // Add uniqueness info for UI context
+          problemUniqueness: problem ? getExpectedUniqueness(problem) : 'medium',
+        };
+      });
 
       return NextResponse.json({
         submissions: enrichedSubmissions,
