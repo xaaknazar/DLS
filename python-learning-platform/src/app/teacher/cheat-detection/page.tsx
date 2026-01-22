@@ -41,7 +41,16 @@ interface StudentCheatSummary {
   averageCheatScore: number;
   maxCheatScore: number;
   highSeverityCount: number;
+  // Category-specific data
+  maxSimilarityScore: number;
+  maxBehaviorScore: number;
+  maxAiScore: number;
+  isCheater: boolean;
+  similarityMatchCount: number;
 }
+
+// Main page category tabs
+type MainCategory = 'similarity' | 'behavior' | 'ai';
 
 // Severity color helper
 const getSeverityColor = (severity: string) => {
@@ -513,6 +522,47 @@ function SubmissionDetail({ analysis }: { analysis: DetailedSubmissionAnalysis }
   );
 }
 
+// Main category tab button component
+function MainCategoryTab({
+  active,
+  onClick,
+  children,
+  icon: Icon,
+  count,
+  cheaterCount,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  icon: React.ElementType;
+  count?: number;
+  cheaterCount?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-3 px-6 py-4 rounded-xl font-medium transition-all ${
+        active
+          ? 'bg-blue-500/20 text-blue-400 border-2 border-blue-500/50 shadow-lg shadow-blue-500/20'
+          : 'bg-gray-800/50 text-gray-400 border-2 border-gray-700 hover:text-white hover:bg-gray-800 hover:border-gray-600'
+      }`}
+    >
+      <Icon className={`w-6 h-6 ${active ? 'text-blue-400' : ''}`} />
+      <div className="text-left">
+        <span className="block text-lg">{children}</span>
+        {count !== undefined && (
+          <span className={`text-sm ${active ? 'text-blue-300' : 'text-gray-500'}`}>
+            {count} студентов
+            {cheaterCount !== undefined && cheaterCount > 0 && (
+              <span className="text-red-400 ml-2">• {cheaterCount} читеров</span>
+            )}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
 export default function CheatDetectionPage() {
   const [students, setStudents] = useState<StudentCheatSummary[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
@@ -524,14 +574,55 @@ export default function CheatDetectionPage() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null);
+  const [mainCategory, setMainCategory] = useState<MainCategory>('similarity');
 
-  // Fetch students list
+  // Stats for category tabs
+  const [categoryStats, setCategoryStats] = useState<{
+    similarity: { count: number; cheaterCount: number };
+    behavior: { count: number };
+    ai: { count: number };
+  }>({ similarity: { count: 0, cheaterCount: 0 }, behavior: { count: 0 }, ai: { count: 0 } });
+
+  // Fetch category stats on mount
+  useEffect(() => {
+    async function fetchCategoryStats() {
+      try {
+        const gradeParam = selectedGrade ? `&grade=${selectedGrade}` : '';
+        const [simRes, behRes, aiRes] = await Promise.all([
+          fetch(`/api/cheat-detection?action=students&category=similarity${gradeParam}`),
+          fetch(`/api/cheat-detection?action=students&category=behavior${gradeParam}`),
+          fetch(`/api/cheat-detection?action=students&category=ai${gradeParam}`),
+        ]);
+
+        const [simData, behData, aiData] = await Promise.all([
+          simRes.ok ? simRes.json() : { students: [] },
+          behRes.ok ? behRes.json() : { students: [] },
+          aiRes.ok ? aiRes.json() : { students: [] },
+        ]);
+
+        setCategoryStats({
+          similarity: {
+            count: simData.students?.length || 0,
+            cheaterCount: simData.students?.filter((s: StudentCheatSummary) => s.isCheater).length || 0,
+          },
+          behavior: { count: behData.students?.length || 0 },
+          ai: { count: aiData.students?.length || 0 },
+        });
+      } catch (error) {
+        console.error('Failed to fetch category stats:', error);
+      }
+    }
+    fetchCategoryStats();
+  }, [selectedGrade]);
+
+  // Fetch students list by category
   useEffect(() => {
     async function fetchStudents() {
       setLoading(true);
       try {
         const gradeParam = selectedGrade ? `&grade=${selectedGrade}` : '';
-        const res = await fetch(`/api/cheat-detection?action=students${gradeParam}`);
+        const categoryParam = `&category=${mainCategory}`;
+        const res = await fetch(`/api/cheat-detection?action=students${gradeParam}${categoryParam}`);
         if (res.ok) {
           const data = await res.json();
           setStudents(data.students || []);
@@ -543,7 +634,7 @@ export default function CheatDetectionPage() {
       }
     }
     fetchStudents();
-  }, [selectedGrade]);
+  }, [selectedGrade, mainCategory]);
 
   // Fetch student details when selected
   useEffect(() => {
@@ -605,6 +696,75 @@ export default function CheatDetectionPage() {
         {/* Student list view */}
         {!selectedStudent && (
           <>
+            {/* Main category tabs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <MainCategoryTab
+                active={mainCategory === 'similarity'}
+                onClick={() => setMainCategory('similarity')}
+                icon={Users}
+                count={categoryStats.similarity.count}
+                cheaterCount={categoryStats.similarity.cheaterCount}
+              >
+                Сходство
+              </MainCategoryTab>
+              <MainCategoryTab
+                active={mainCategory === 'behavior'}
+                onClick={() => setMainCategory('behavior')}
+                icon={Clock}
+                count={categoryStats.behavior.count}
+              >
+                Поведение
+              </MainCategoryTab>
+              <MainCategoryTab
+                active={mainCategory === 'ai'}
+                onClick={() => setMainCategory('ai')}
+                icon={Bot}
+                count={categoryStats.ai.count}
+              >
+                ИИ
+              </MainCategoryTab>
+            </div>
+
+            {/* Category description */}
+            <div className="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              {mainCategory === 'similarity' && (
+                <div className="flex items-start gap-3">
+                  <Users className="w-5 h-5 text-orange-400 mt-0.5" />
+                  <div>
+                    <h3 className="text-white font-medium mb-1">Анализ сходства кода</h3>
+                    <p className="text-gray-400 text-sm">
+                      Студенты с похожими решениями. <span className="text-red-400 font-medium">Сходство ≥95% = читерство</span>.
+                      Учитывается уникальность задачи — для простых задач допускается больше сходства.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {mainCategory === 'behavior' && (
+                <div className="flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-blue-400 mt-0.5" />
+                  <div>
+                    <h3 className="text-white font-medium mb-1">Анализ поведения</h3>
+                    <p className="text-gray-400 text-sm">
+                      Студенты с подозрительным поведением: слишком быстрое решение,
+                      мало нажатий клавиш, много вставок (Ctrl+V), частые переключения вкладок.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {mainCategory === 'ai' && (
+                <div className="flex items-start gap-3">
+                  <Bot className="w-5 h-5 text-purple-400 mt-0.5" />
+                  <div>
+                    <h3 className="text-white font-medium mb-1">Анализ ИИ-паттернов</h3>
+                    <p className="text-gray-400 text-sm">
+                      Студенты с признаками использования ИИ: list comprehensions, type hints,
+                      идеальное форматирование, комментарии на английском, продвинутые конструкции.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Filter */}
             <div className="flex items-center gap-4 mb-6">
               <span className="text-gray-400 text-sm">Класс:</span>
@@ -619,38 +779,84 @@ export default function CheatDetectionPage() {
                 ))}
               </select>
               <span className="text-gray-500 text-sm ml-4">
-                Всего учеников: {students.length}
+                Найдено: {students.length}
               </span>
             </div>
 
-            {/* Students grid */}
+            {/* Students grid - different display by category */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {students.map(student => (
                 <Card
                   key={student.id}
-                  className="p-4 cursor-pointer hover:border-blue-500/50 transition-colors"
+                  className={`p-4 cursor-pointer transition-colors ${
+                    mainCategory === 'similarity' && student.isCheater
+                      ? 'border-red-500/50 hover:border-red-500 bg-red-500/5'
+                      : 'hover:border-blue-500/50'
+                  }`}
                   onClick={() => setSelectedStudent(student.id)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="text-white font-semibold">{student.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-white font-semibold">{student.name}</h3>
+                        {mainCategory === 'similarity' && student.isCheater && (
+                          <Badge variant="danger">ЧИТЕР</Badge>
+                        )}
+                      </div>
                       <p className="text-gray-500 text-sm">{student.grade} класс</p>
                     </div>
-                    <div className={`text-2xl font-bold ${getScoreColor(student.maxCheatScore)}`}>
-                      {student.maxCheatScore}
-                    </div>
+
+                    {/* Category-specific score display */}
+                    {mainCategory === 'similarity' && (
+                      <div className="text-right">
+                        <div className={`text-2xl font-bold ${
+                          student.maxSimilarityScore >= 95 ? 'text-red-400' :
+                          student.maxSimilarityScore >= 80 ? 'text-orange-400' : 'text-yellow-400'
+                        }`}>
+                          {student.maxSimilarityScore.toFixed(0)}%
+                        </div>
+                        <p className="text-xs text-gray-500">сходство</p>
+                      </div>
+                    )}
+                    {mainCategory === 'behavior' && (
+                      <div className="text-right">
+                        <div className={`text-2xl font-bold ${getScoreColor(student.maxBehaviorScore)}`}>
+                          {student.maxBehaviorScore}
+                        </div>
+                        <p className="text-xs text-gray-500">балл</p>
+                      </div>
+                    )}
+                    {mainCategory === 'ai' && (
+                      <div className="text-right">
+                        <div className={`text-2xl font-bold ${getScoreColor(student.maxAiScore)}`}>
+                          {student.maxAiScore}
+                        </div>
+                        <p className="text-xs text-gray-500">балл</p>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Category-specific info */}
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1 text-gray-400">
                       <CheckCircle className="w-4 h-4 text-green-400" />
                       <span>{student.solvedProblems} решено</span>
                     </div>
-                    {student.flaggedSubmissions > 0 && (
+
+                    {mainCategory === 'similarity' && student.similarityMatchCount > 0 && (
+                      <div className="flex items-center gap-1 text-orange-400">
+                        <Users className="w-4 h-4" />
+                        <span>{student.similarityMatchCount} совпад.</span>
+                      </div>
+                    )}
+
+                    {mainCategory !== 'similarity' && student.flaggedSubmissions > 0 && (
                       <div className="flex items-center gap-1 text-yellow-400">
                         <AlertTriangle className="w-4 h-4" />
                         <span>{student.flaggedSubmissions} подозр.</span>
                       </div>
                     )}
+
                     {student.highSeverityCount > 0 && (
                       <div className="flex items-center gap-1 text-red-400">
                         <ShieldAlert className="w-4 h-4" />
@@ -663,8 +869,17 @@ export default function CheatDetectionPage() {
             </div>
 
             {students.length === 0 && (
-              <div className="text-center text-gray-500 py-12">
-                Ученики не найдены
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  {mainCategory === 'similarity' && <Users className="w-8 h-8 text-gray-600" />}
+                  {mainCategory === 'behavior' && <Clock className="w-8 h-8 text-gray-600" />}
+                  {mainCategory === 'ai' && <Bot className="w-8 h-8 text-gray-600" />}
+                </div>
+                <p className="text-gray-500">
+                  {mainCategory === 'similarity' && 'Нет студентов с похожими решениями'}
+                  {mainCategory === 'behavior' && 'Нет студентов с подозрительным поведением'}
+                  {mainCategory === 'ai' && 'Нет студентов с признаками использования ИИ'}
+                </p>
               </div>
             )}
           </>

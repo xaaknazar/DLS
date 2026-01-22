@@ -70,6 +70,8 @@ export async function GET(request: NextRequest) {
 
     // If action is 'students' - return list of students with their cheat summary
     if (action === 'students') {
+      const category = searchParams.get('category'); // 'similarity' | 'behavior' | 'ai' | null (all)
+
       const studentCheatData = filteredStudents.map(student => {
         const studentSubmissions = analyzedSubmissions.filter(s => s.studentId === student.id);
         const passedSubmissions = studentSubmissions.filter(s => s.status === 'passed');
@@ -78,10 +80,50 @@ export async function GET(request: NextRequest) {
         let totalCheatScore = 0;
         let highSeverityCount = 0;
 
+        // Category-specific scores
+        let maxSimilarityScore = 0;
+        let maxBehaviorScore = 0;
+        let maxAiScore = 0;
+        let isCheater = false; // similarity >= 95%
+
+        // Get all similarity matches for this student
+        const studentSimilarityMatches = similarityMatches.filter(
+          m => m.studentId1 === student.id || m.studentId2 === student.id
+        );
+
+        if (studentSimilarityMatches.length > 0) {
+          maxSimilarityScore = Math.max(...studentSimilarityMatches.map(m => m.similarityScore));
+          if (maxSimilarityScore >= 95) {
+            isCheater = true;
+          }
+        }
+
         for (const sub of flaggedSubmissions) {
           totalCheatScore += sub.cheatScore || 0;
           if (sub.cheatFlags?.some(f => f.severity === 'high' || f.severity === 'critical')) {
             highSeverityCount++;
+          }
+
+          // Check for behavior flags (fast_solution, copy_paste)
+          const hasBehaviorFlags = sub.cheatFlags?.some(f =>
+            f.type === 'fast_solution' || f.type === 'copy_paste'
+          );
+          if (hasBehaviorFlags) {
+            const behaviorScore = sub.cheatFlags
+              ?.filter(f => f.type === 'fast_solution' || f.type === 'copy_paste')
+              .reduce((sum, f) => sum + (f.confidence || 0), 0) || 0;
+            maxBehaviorScore = Math.max(maxBehaviorScore, behaviorScore);
+          }
+
+          // Check for AI flags
+          const hasAiFlags = sub.cheatFlags?.some(f =>
+            f.type === 'ai_patterns' || f.type === 'english_comments' || f.type === 'advanced_code'
+          );
+          if (hasAiFlags) {
+            const aiFlag = sub.cheatFlags?.find(f => f.type === 'ai_patterns');
+            if (aiFlag) {
+              maxAiScore = Math.max(maxAiScore, aiFlag.confidence || 0);
+            }
           }
         }
 
@@ -98,15 +140,35 @@ export async function GET(request: NextRequest) {
             ? Math.max(...flaggedSubmissions.map(s => s.cheatScore || 0))
             : 0,
           highSeverityCount,
+          // Category-specific data
+          maxSimilarityScore,
+          maxBehaviorScore,
+          maxAiScore,
+          isCheater,
+          similarityMatchCount: studentSimilarityMatches.length,
         };
       });
 
-      // Sort by max cheat score descending
-      studentCheatData.sort((a, b) => b.maxCheatScore - a.maxCheatScore);
+      // Filter by category if specified
+      let filteredData = studentCheatData;
+      if (category === 'similarity') {
+        filteredData = studentCheatData.filter(s => s.maxSimilarityScore > 0);
+        filteredData.sort((a, b) => b.maxSimilarityScore - a.maxSimilarityScore);
+      } else if (category === 'behavior') {
+        filteredData = studentCheatData.filter(s => s.maxBehaviorScore > 0);
+        filteredData.sort((a, b) => b.maxBehaviorScore - a.maxBehaviorScore);
+      } else if (category === 'ai') {
+        filteredData = studentCheatData.filter(s => s.maxAiScore > 0);
+        filteredData.sort((a, b) => b.maxAiScore - a.maxAiScore);
+      } else {
+        // Default: sort by max cheat score descending
+        filteredData.sort((a, b) => b.maxCheatScore - a.maxCheatScore);
+      }
 
       return NextResponse.json({
-        students: studentCheatData,
-        total: studentCheatData.length,
+        students: filteredData,
+        total: filteredData.length,
+        category,
       });
     }
 
