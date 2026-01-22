@@ -583,58 +583,64 @@ export default function CheatDetectionPage() {
     ai: { count: number };
   }>({ similarity: { count: 0, cheaterCount: 0 }, behavior: { count: 0 }, ai: { count: 0 } });
 
-  // Fetch category stats on mount
+  // All data cache
+  const [allData, setAllData] = useState<{
+    similarity: { students: StudentCheatSummary[]; count: number; cheaterCount: number };
+    behavior: { students: StudentCheatSummary[]; count: number };
+    ai: { students: StudentCheatSummary[]; count: number };
+  } | null>(null);
+
+  // Fetch all data in ONE request
   useEffect(() => {
-    async function fetchCategoryStats() {
-      try {
-        const gradeParam = selectedGrade ? `&grade=${selectedGrade}` : '';
-        const [simRes, behRes, aiRes] = await Promise.all([
-          fetch(`/api/cheat-detection?action=students&category=similarity${gradeParam}`),
-          fetch(`/api/cheat-detection?action=students&category=behavior${gradeParam}`),
-          fetch(`/api/cheat-detection?action=students&category=ai${gradeParam}`),
-        ]);
-
-        const [simData, behData, aiData] = await Promise.all([
-          simRes.ok ? simRes.json() : { students: [] },
-          behRes.ok ? behRes.json() : { students: [] },
-          aiRes.ok ? aiRes.json() : { students: [] },
-        ]);
-
-        setCategoryStats({
-          similarity: {
-            count: simData.students?.length || 0,
-            cheaterCount: simData.students?.filter((s: StudentCheatSummary) => s.isCheater).length || 0,
-          },
-          behavior: { count: behData.students?.length || 0 },
-          ai: { count: aiData.students?.length || 0 },
-        });
-      } catch (error) {
-        console.error('Failed to fetch category stats:', error);
-      }
-    }
-    fetchCategoryStats();
-  }, [selectedGrade]);
-
-  // Fetch students list by category
-  useEffect(() => {
-    async function fetchStudents() {
+    async function fetchAllData() {
       setLoading(true);
       try {
         const gradeParam = selectedGrade ? `&grade=${selectedGrade}` : '';
-        const categoryParam = `&category=${mainCategory}`;
-        const res = await fetch(`/api/cheat-detection?action=students${gradeParam}${categoryParam}`);
+        const res = await fetch(`/api/cheat-detection?action=all-stats${gradeParam}`);
         if (res.ok) {
           const data = await res.json();
-          setStudents(data.students || []);
+          setAllData(data);
+
+          // Set stats from the combined response
+          setCategoryStats({
+            similarity: {
+              count: data.similarity?.count || 0,
+              cheaterCount: data.similarity?.cheaterCount || 0,
+            },
+            behavior: { count: data.behavior?.count || 0 },
+            ai: { count: data.ai?.count || 0 },
+          });
+
+          // Set students for current category
+          if (mainCategory === 'similarity') {
+            setStudents(data.similarity?.students || []);
+          } else if (mainCategory === 'behavior') {
+            setStudents(data.behavior?.students || []);
+          } else if (mainCategory === 'ai') {
+            setStudents(data.ai?.students || []);
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch students:', error);
+        console.error('Failed to fetch data:', error);
       } finally {
         setLoading(false);
       }
     }
-    fetchStudents();
-  }, [selectedGrade, mainCategory]);
+    fetchAllData();
+  }, [selectedGrade]);
+
+  // When category changes, just update from cached data (no new request)
+  useEffect(() => {
+    if (!allData) return;
+
+    if (mainCategory === 'similarity') {
+      setStudents(allData.similarity?.students || []);
+    } else if (mainCategory === 'behavior') {
+      setStudents(allData.behavior?.students || []);
+    } else if (mainCategory === 'ai') {
+      setStudents(allData.ai?.students || []);
+    }
+  }, [mainCategory, allData]);
 
   // Fetch student details when selected
   useEffect(() => {

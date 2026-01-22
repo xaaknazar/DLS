@@ -15,7 +15,112 @@ import {
   getStudentSubmissionsWithAnalysis,
   DetailedSubmissionAnalysis,
 } from '@/lib/cheat-detection';
-import { Student, Submission, SubmissionWithCheatData } from '@/types';
+import { Student, Submission, SubmissionWithCheatData, Problem } from '@/types';
+
+// Simple in-memory cache for expensive computations
+interface CacheEntry {
+  data: unknown;
+  timestamp: number;
+}
+
+const analysisCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 30000; // 30 seconds cache
+
+function getCacheKey(params: Record<string, string | null>): string {
+  return JSON.stringify(params);
+}
+
+function getCachedData<T>(key: string): T | null {
+  const entry = analysisCache.get(key);
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
+    return entry.data as T;
+  }
+  if (entry) {
+    analysisCache.delete(key);
+  }
+  return null;
+}
+
+function setCachedData(key: string, data: unknown): void {
+  // Limit cache size
+  if (analysisCache.size > 50) {
+    const oldestKey = analysisCache.keys().next().value;
+    if (oldestKey) analysisCache.delete(oldestKey);
+  }
+  analysisCache.set(key, { data, timestamp: Date.now() });
+}
+
+// Optimized function to compute student cheat data
+function computeStudentCheatData(
+  student: Student,
+  analyzedSubmissions: SubmissionWithCheatData[],
+  similarityMatches: { studentId1: string; studentId2: string; similarityScore: number }[]
+) {
+  const studentSubmissions = analyzedSubmissions.filter(s => s.studentId === student.id);
+  const passedSubmissions = studentSubmissions.filter(s => s.status === 'passed');
+  const flaggedSubmissions = studentSubmissions.filter(s => (s.cheatFlags?.length || 0) > 0);
+
+  let totalCheatScore = 0;
+  let highSeverityCount = 0;
+  let maxSimilarityScore = 0;
+  let maxBehaviorScore = 0;
+  let maxAiScore = 0;
+  let isCheater = false;
+
+  // Get similarity matches for this student
+  const studentSimilarityMatches = similarityMatches.filter(
+    m => m.studentId1 === student.id || m.studentId2 === student.id
+  );
+
+  if (studentSimilarityMatches.length > 0) {
+    maxSimilarityScore = Math.max(...studentSimilarityMatches.map(m => m.similarityScore));
+    if (maxSimilarityScore >= 95) {
+      isCheater = true;
+    }
+  }
+
+  for (const sub of flaggedSubmissions) {
+    totalCheatScore += sub.cheatScore || 0;
+    if (sub.cheatFlags?.some(f => f.severity === 'high' || f.severity === 'critical')) {
+      highSeverityCount++;
+    }
+
+    // Behavior flags
+    const behaviorFlags = sub.cheatFlags?.filter(f =>
+      f.type === 'fast_solution' || f.type === 'copy_paste'
+    ) || [];
+    if (behaviorFlags.length > 0) {
+      const behaviorScore = behaviorFlags.reduce((sum, f) => sum + (f.confidence || 0), 0);
+      maxBehaviorScore = Math.max(maxBehaviorScore, behaviorScore);
+    }
+
+    // AI flags
+    const aiFlag = sub.cheatFlags?.find(f => f.type === 'ai_patterns');
+    if (aiFlag) {
+      maxAiScore = Math.max(maxAiScore, aiFlag.confidence || 0);
+    }
+  }
+
+  return {
+    id: student.id,
+    name: student.name,
+    grade: student.grade,
+    solvedProblems: passedSubmissions.length,
+    flaggedSubmissions: flaggedSubmissions.length,
+    averageCheatScore: flaggedSubmissions.length > 0
+      ? Math.round(totalCheatScore / flaggedSubmissions.length)
+      : 0,
+    maxCheatScore: flaggedSubmissions.length > 0
+      ? Math.max(...flaggedSubmissions.map(s => s.cheatScore || 0))
+      : 0,
+    highSeverityCount,
+    maxSimilarityScore,
+    maxBehaviorScore,
+    maxAiScore,
+    isCheater,
+    similarityMatchCount: studentSimilarityMatches.length,
+  };
+}
 
 // GET /api/cheat-detection - Get cheat detection summary or student report
 export async function GET(request: NextRequest) {
@@ -27,6 +132,9 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action');
     const gradeFilter = searchParams.get('grade');
     const threshold = parseInt(searchParams.get('threshold') || '70', 10);
+
+    // Check cache for expensive operations
+    const cacheKey = getCacheKey({ action, gradeFilter, threshold: threshold.toString() });
 
     // Get all required data
     const [submissions, students, problems] = await Promise.all([
@@ -45,6 +153,74 @@ export async function GET(request: NextRequest) {
     const filteredSubmissions = gradeFilter
       ? submissions.filter(s => studentIds.has(s.studentId))
       : submissions;
+
+    // NEW: Combined action to get all category stats in one request
+    if (action === 'all-stats') {
+      const cached = getCachedData<{
+        similarity: { students: ReturnType<typeof computeStudentCheatData>[]; count: number; cheaterCount: number };
+        behavior: { students: ReturnType<typeof computeStudentCheatData>[]; count: number };
+        ai: { students: ReturnType<typeof computeStudentCheatData>[]; count: number };
+      }>(cacheKey);
+
+      if (cached) {
+        return NextResponse.json(cached);
+      }
+
+      // Compute analysis once
+      const similarityMatches = findSimilarSubmissions(filteredSubmissions, problems, threshold);
+      const problemMap = new Map(problems.map(p => [p.id, p]));
+      const submissionsByProblem = new Map<string, Submission[]>();
+
+      for (const sub of filteredSubmissions) {
+        const list = submissionsByProblem.get(sub.problemId) || [];
+        list.push(sub);
+        submissionsByProblem.set(sub.problemId, list);
+      }
+
+      const analyzedSubmissions: SubmissionWithCheatData[] = filteredSubmissions.map(sub => {
+        const problem = problemMap.get(sub.problemId);
+        if (!problem) return { ...sub, cheatFlags: [], cheatScore: 0 };
+        const problemSubmissions = submissionsByProblem.get(sub.problemId) || [];
+        return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions);
+      });
+
+      // Compute all student data once
+      const allStudentData = filteredStudents.map(student =>
+        computeStudentCheatData(student, analyzedSubmissions, similarityMatches)
+      );
+
+      // Filter and sort for each category
+      const similarityStudents = allStudentData
+        .filter(s => s.maxSimilarityScore > 0)
+        .sort((a, b) => b.maxSimilarityScore - a.maxSimilarityScore);
+
+      const behaviorStudents = allStudentData
+        .filter(s => s.maxBehaviorScore > 0)
+        .sort((a, b) => b.maxBehaviorScore - a.maxBehaviorScore);
+
+      const aiStudents = allStudentData
+        .filter(s => s.maxAiScore > 0)
+        .sort((a, b) => b.maxAiScore - a.maxAiScore);
+
+      const result = {
+        similarity: {
+          students: similarityStudents,
+          count: similarityStudents.length,
+          cheaterCount: similarityStudents.filter(s => s.isCheater).length,
+        },
+        behavior: {
+          students: behaviorStudents,
+          count: behaviorStudents.length,
+        },
+        ai: {
+          students: aiStudents,
+          count: aiStudents.length,
+        },
+      };
+
+      setCachedData(cacheKey, result);
+      return NextResponse.json(result);
+    }
 
     // Find similarity matches (now uses problem-specific thresholds)
     const similarityMatches = findSimilarSubmissions(filteredSubmissions, problems, threshold);
@@ -72,82 +248,10 @@ export async function GET(request: NextRequest) {
     if (action === 'students') {
       const category = searchParams.get('category'); // 'similarity' | 'behavior' | 'ai' | null (all)
 
-      const studentCheatData = filteredStudents.map(student => {
-        const studentSubmissions = analyzedSubmissions.filter(s => s.studentId === student.id);
-        const passedSubmissions = studentSubmissions.filter(s => s.status === 'passed');
-        const flaggedSubmissions = studentSubmissions.filter(s => (s.cheatFlags?.length || 0) > 0);
-
-        let totalCheatScore = 0;
-        let highSeverityCount = 0;
-
-        // Category-specific scores
-        let maxSimilarityScore = 0;
-        let maxBehaviorScore = 0;
-        let maxAiScore = 0;
-        let isCheater = false; // similarity >= 95%
-
-        // Get all similarity matches for this student
-        const studentSimilarityMatches = similarityMatches.filter(
-          m => m.studentId1 === student.id || m.studentId2 === student.id
-        );
-
-        if (studentSimilarityMatches.length > 0) {
-          maxSimilarityScore = Math.max(...studentSimilarityMatches.map(m => m.similarityScore));
-          if (maxSimilarityScore >= 95) {
-            isCheater = true;
-          }
-        }
-
-        for (const sub of flaggedSubmissions) {
-          totalCheatScore += sub.cheatScore || 0;
-          if (sub.cheatFlags?.some(f => f.severity === 'high' || f.severity === 'critical')) {
-            highSeverityCount++;
-          }
-
-          // Check for behavior flags (fast_solution, copy_paste)
-          const hasBehaviorFlags = sub.cheatFlags?.some(f =>
-            f.type === 'fast_solution' || f.type === 'copy_paste'
-          );
-          if (hasBehaviorFlags) {
-            const behaviorScore = sub.cheatFlags
-              ?.filter(f => f.type === 'fast_solution' || f.type === 'copy_paste')
-              .reduce((sum, f) => sum + (f.confidence || 0), 0) || 0;
-            maxBehaviorScore = Math.max(maxBehaviorScore, behaviorScore);
-          }
-
-          // Check for AI flags
-          const hasAiFlags = sub.cheatFlags?.some(f =>
-            f.type === 'ai_patterns' || f.type === 'english_comments' || f.type === 'advanced_code'
-          );
-          if (hasAiFlags) {
-            const aiFlag = sub.cheatFlags?.find(f => f.type === 'ai_patterns');
-            if (aiFlag) {
-              maxAiScore = Math.max(maxAiScore, aiFlag.confidence || 0);
-            }
-          }
-        }
-
-        return {
-          id: student.id,
-          name: student.name,
-          grade: student.grade,
-          solvedProblems: passedSubmissions.length,
-          flaggedSubmissions: flaggedSubmissions.length,
-          averageCheatScore: flaggedSubmissions.length > 0
-            ? Math.round(totalCheatScore / flaggedSubmissions.length)
-            : 0,
-          maxCheatScore: flaggedSubmissions.length > 0
-            ? Math.max(...flaggedSubmissions.map(s => s.cheatScore || 0))
-            : 0,
-          highSeverityCount,
-          // Category-specific data
-          maxSimilarityScore,
-          maxBehaviorScore,
-          maxAiScore,
-          isCheater,
-          similarityMatchCount: studentSimilarityMatches.length,
-        };
-      });
+      // Use optimized function
+      const studentCheatData = filteredStudents.map(student =>
+        computeStudentCheatData(student, analyzedSubmissions, similarityMatches)
+      );
 
       // Filter by category if specified
       let filteredData = studentCheatData;

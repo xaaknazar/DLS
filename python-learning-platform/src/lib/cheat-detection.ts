@@ -96,13 +96,44 @@ export function getSimilarityThresholds(uniqueness: SolutionUniqueness): {
   }
 }
 
+// ==================== CACHING ====================
+
+// Cache for tokenized code (LRU-like, limited size)
+const tokenCache = new Map<string, string[]>();
+const TOKEN_CACHE_SIZE = 500;
+
+// Cache for similarity comparisons
+const similarityCache = new Map<string, number>();
+const SIMILARITY_CACHE_SIZE = 2000;
+
+function getCacheKey(code1: string, code2: string): string {
+  // Use shorter hash-like key
+  const hash1 = code1.length + '-' + code1.slice(0, 50);
+  const hash2 = code2.length + '-' + code2.slice(0, 50);
+  return hash1 < hash2 ? `${hash1}|${hash2}` : `${hash2}|${hash1}`;
+}
+
+function addToCache<T>(cache: Map<string, T>, key: string, value: T, maxSize: number): void {
+  if (cache.size >= maxSize) {
+    // Remove oldest entry (first key)
+    const firstKey = cache.keys().next().value;
+    if (firstKey) cache.delete(firstKey);
+  }
+  cache.set(key, value);
+}
+
 // ==================== CODE TOKENIZATION ====================
 
 /**
  * Tokenize Python code for comparison
  * Removes whitespace, comments, and normalizes variable names
+ * Uses caching for performance
  */
 function tokenizePythonCode(code: string): string[] {
+  // Check cache first
+  const cached = tokenCache.get(code);
+  if (cached) return cached;
+
   // Remove comments
   let cleanCode = code
     .split('\n')
@@ -112,38 +143,46 @@ function tokenizePythonCode(code: string): string[] {
     })
     .join('\n');
 
-  // Remove string literals (replace with placeholder)
-  cleanCode = cleanCode.replace(/"([^"\\]|\\.)*"/g, 'STR');
-  cleanCode = cleanCode.replace(/'([^'\\]|\\.)*'/g, 'STR');
+  // Remove string literals (replace with placeholder) - handle multiline first
   cleanCode = cleanCode.replace(/"""[\s\S]*?"""/g, 'STR');
   cleanCode = cleanCode.replace(/'''[\s\S]*?'''/g, 'STR');
+  cleanCode = cleanCode.replace(/"([^"\\]|\\.)*"/g, 'STR');
+  cleanCode = cleanCode.replace(/'([^'\\]|\\.)*'/g, 'STR');
 
   // Normalize whitespace
   cleanCode = cleanCode.replace(/\s+/g, ' ').trim();
 
-  // Python keywords and operators to keep
+  // Extended Python keywords and builtins
   const keywords = [
     'def', 'class', 'if', 'elif', 'else', 'for', 'while', 'try', 'except',
     'finally', 'with', 'as', 'import', 'from', 'return', 'yield', 'raise',
     'break', 'continue', 'pass', 'lambda', 'and', 'or', 'not', 'in', 'is',
     'True', 'False', 'None', 'print', 'input', 'range', 'len', 'int', 'str',
     'float', 'list', 'dict', 'set', 'tuple', 'open', 'read', 'write',
+    'append', 'pop', 'split', 'join', 'strip', 'replace', 'find', 'count',
+    'sum', 'max', 'min', 'abs', 'sorted', 'reversed', 'enumerate', 'zip',
+    'map', 'filter', 'any', 'all', 'type', 'isinstance', 'hasattr', 'getattr',
   ];
 
+  // Extended operators
   const operators = [
-    '==', '!=', '<=', '>=', '<', '>', '=', '+', '-', '*', '/', '//', '%', '**',
-    '+=', '-=', '*=', '/=', '(', ')', '[', ']', '{', '}', ':', ',', '.',
+    '==', '!=', '<=', '>=', '<', '>', ':=', '->', '**=', '//=',
+    '+=', '-=', '*=', '/=', '%=', '**', '//',
+    '=', '+', '-', '*', '/', '%',
+    '(', ')', '[', ']', '{', '}', ':', ',', '.', '@',
   ];
 
-  // Tokenize
+  // Tokenize with consistent variable naming
   const tokens: string[] = [];
   let remaining = cleanCode;
+  let varCounter = 0;
+  const varMap = new Map<string, string>();
 
   while (remaining.length > 0) {
     remaining = remaining.trimStart();
     if (!remaining) break;
 
-    // Check for operators
+    // Check for operators (longer ones first)
     let matched = false;
     for (const op of operators) {
       if (remaining.startsWith(op)) {
@@ -162,8 +201,11 @@ function tokenizePythonCode(code: string): string[] {
       if (keywords.includes(word)) {
         tokens.push(word);
       } else {
-        // Normalize variable names to VAR
-        tokens.push('VAR');
+        // Normalize variable names consistently
+        if (!varMap.has(word)) {
+          varMap.set(word, `V${varCounter++}`);
+        }
+        tokens.push(varMap.get(word)!);
       }
       remaining = remaining.slice(word.length);
       continue;
@@ -181,7 +223,44 @@ function tokenizePythonCode(code: string): string[] {
     remaining = remaining.slice(1);
   }
 
+  // Cache the result
+  addToCache(tokenCache, code, tokens, TOKEN_CACHE_SIZE);
   return tokens;
+}
+
+/**
+ * Get structural fingerprint of code (control flow structure)
+ * This helps detect copied code even with renamed variables
+ */
+function getStructuralFingerprint(code: string): string {
+  const lines = code.split('\n');
+  const structure: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    // Get indentation level
+    const indent = line.match(/^(\s*)/)?.[1].length || 0;
+    const indentLevel = Math.floor(indent / 4);
+
+    // Identify structure type
+    if (/^def\s+/.test(trimmed)) structure.push(`${indentLevel}D`);
+    else if (/^class\s+/.test(trimmed)) structure.push(`${indentLevel}C`);
+    else if (/^if\s+/.test(trimmed)) structure.push(`${indentLevel}I`);
+    else if (/^elif\s+/.test(trimmed)) structure.push(`${indentLevel}E`);
+    else if (/^else\s*:/.test(trimmed)) structure.push(`${indentLevel}L`);
+    else if (/^for\s+/.test(trimmed)) structure.push(`${indentLevel}F`);
+    else if (/^while\s+/.test(trimmed)) structure.push(`${indentLevel}W`);
+    else if (/^try\s*:/.test(trimmed)) structure.push(`${indentLevel}T`);
+    else if (/^except/.test(trimmed)) structure.push(`${indentLevel}X`);
+    else if (/^return\b/.test(trimmed)) structure.push(`${indentLevel}R`);
+    else if (/^print\s*\(/.test(trimmed)) structure.push(`${indentLevel}P`);
+    else if (/=/.test(trimmed) && !/[<>=!]=/.test(trimmed)) structure.push(`${indentLevel}A`);
+    else structure.push(`${indentLevel}S`);
+  }
+
+  return structure.join('');
 }
 
 /**
@@ -261,30 +340,85 @@ function levenshteinSimilarity(str1: string, str2: string): number {
 
 /**
  * Compare two submissions and return similarity score
+ * Uses caching, early exit, and structural comparison for better accuracy
  */
 export function compareSubmissions(code1: string, code2: string): {
   similarityScore: number;
   matchedTokens: number;
   totalTokens: number;
 } {
+  // Check cache first
+  const cacheKey = getCacheKey(code1, code2);
+  const cachedScore = similarityCache.get(cacheKey);
+
+  if (cachedScore !== undefined) {
+    const tokens1 = tokenizePythonCode(code1);
+    const tokens2 = tokenizePythonCode(code2);
+    const totalTokens = Math.max(tokens1.length, tokens2.length);
+    return {
+      similarityScore: cachedScore,
+      matchedTokens: Math.round((cachedScore / 100) * totalTokens),
+      totalTokens,
+    };
+  }
+
+  // Early exit: if code lengths differ significantly, similarity is low
+  const lenRatio = Math.min(code1.length, code2.length) / Math.max(code1.length, code2.length);
+  if (lenRatio < 0.3) {
+    addToCache(similarityCache, cacheKey, 0, SIMILARITY_CACHE_SIZE);
+    return { similarityScore: 0, matchedTokens: 0, totalTokens: Math.max(code1.length, code2.length) / 10 };
+  }
+
   const tokens1 = tokenizePythonCode(code1);
   const tokens2 = tokenizePythonCode(code2);
 
+  // Early exit: if token counts differ significantly
+  const tokenRatio = Math.min(tokens1.length, tokens2.length) / Math.max(tokens1.length, tokens2.length);
+  if (tokenRatio < 0.4) {
+    const totalTokens = Math.max(tokens1.length, tokens2.length);
+    addToCache(similarityCache, cacheKey, 20, SIMILARITY_CACHE_SIZE);
+    return { similarityScore: 20, matchedTokens: 0, totalTokens };
+  }
+
   const jaccardScore = jaccardSimilarity(tokens1, tokens2);
 
-  // Also check raw code similarity (catches direct copy-paste)
-  const normalizedCode1 = code1.replace(/\s+/g, ' ').trim().toLowerCase();
-  const normalizedCode2 = code2.replace(/\s+/g, ' ').trim().toLowerCase();
-  const rawSimilarity = levenshteinSimilarity(normalizedCode1, normalizedCode2);
+  // Get structural fingerprints - this catches copied code with renamed variables
+  const struct1 = getStructuralFingerprint(code1);
+  const struct2 = getStructuralFingerprint(code2);
+  const structuralSimilarity = struct1 === struct2 ? 100 :
+    (struct1.length > 0 && struct2.length > 0) ?
+      levenshteinSimilarity(struct1, struct2) : 0;
 
-  // Combined score (weighted average)
-  const similarityScore = Math.max(jaccardScore, rawSimilarity * 0.9);
+  // Only calculate raw Levenshtein if Jaccard is promising (> 50%)
+  let rawSimilarity = 0;
+  if (jaccardScore > 50) {
+    const normalizedCode1 = code1.replace(/\s+/g, ' ').trim().toLowerCase();
+    const normalizedCode2 = code2.replace(/\s+/g, ' ').trim().toLowerCase();
+    rawSimilarity = levenshteinSimilarity(normalizedCode1, normalizedCode2);
+  }
+
+  // Combined score: token similarity (50%), structural (30%), raw (20%)
+  // If structural similarity is very high (>90%), boost the score
+  let combinedScore = jaccardScore * 0.5 + structuralSimilarity * 0.3 + rawSimilarity * 0.2;
+
+  // If structure is identical and token similarity is high, it's likely copying
+  if (structuralSimilarity > 95 && jaccardScore > 70) {
+    combinedScore = Math.max(combinedScore, (jaccardScore + structuralSimilarity) / 2);
+  }
+
+  // Take max of combined and individual high scores
+  const similarityScore = Math.max(combinedScore, jaccardScore, rawSimilarity * 0.9);
 
   const totalTokens = Math.max(tokens1.length, tokens2.length);
   const matchedTokens = Math.round((similarityScore / 100) * totalTokens);
 
+  const finalScore = Math.round(similarityScore * 10) / 10;
+
+  // Cache the result
+  addToCache(similarityCache, cacheKey, finalScore, SIMILARITY_CACHE_SIZE);
+
   return {
-    similarityScore: Math.round(similarityScore * 10) / 10,
+    similarityScore: finalScore,
     matchedTokens,
     totalTokens,
   };
@@ -1339,7 +1473,8 @@ export function getStudentSubmissionsWithAnalysis(
     if (!problem) continue;
 
     const allProblemSubmissions = submissionsByProblem.get(problemId) || [];
-    const subMetadata = metadata?.get(submission.id);
+    // Use metadata from submission itself, or from provided map as fallback
+    const subMetadata = submission.metadata || metadata?.get(submission.id);
 
     const analysis = analyzeSubmissionDetailed(
       submission,
