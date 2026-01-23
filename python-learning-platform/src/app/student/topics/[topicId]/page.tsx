@@ -10,14 +10,14 @@ import Button from '@/components/ui/Button';
 import { getTopicById, getProblemsByTopic } from '@/lib/store';
 import { getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
+import { DocumentationViewer } from '@/components/documentation';
 import {
   BookOpen,
   Code,
   ChevronRight,
   CheckCircle,
-  Clock,
   Star,
+  Lock,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -43,6 +43,17 @@ export default function TopicPage() {
       <Header title={topic.titleRu} subtitle={topic.descriptionRu} />
 
       <div className="p-8">
+        {/* Topic Locked Warning */}
+        {topic.isLocked && (
+          <div className="mb-6 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+            <div>
+              <p className="text-yellow-400 font-medium">Тема закрыта</p>
+              <p className="text-gray-400 text-sm">Вы можете просматривать материалы, но не можете отправлять решения задач.</p>
+            </div>
+          </div>
+        )}
+
         {/* Topic Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card className="p-4 flex items-center gap-4">
@@ -99,9 +110,7 @@ export default function TopicPage() {
         {/* Content */}
         {activeTab === 'docs' ? (
           <Card className="p-8">
-            <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-gray-300 prose-code:bg-gray-800 prose-code:px-2 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-800 prose-pre:border prose-pre:border-gray-700">
-              <ReactMarkdown>{topic.documentation}</ReactMarkdown>
-            </div>
+            <DocumentationViewer content={topic.documentation} />
           </Card>
         ) : (
           <div className="space-y-4">
@@ -110,35 +119,30 @@ export default function TopicPage() {
 
               return (
                 <Link key={problem.id} href={`/student/problems/${problem.id}`}>
-                  <Card variant="interactive" className="p-5">
+                  <Card variant="interactive" className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
                             isCompleted
                               ? 'bg-green-500/10'
                               : 'bg-gray-700'
                           }`}
                         >
                           {isCompleted ? (
-                            <CheckCircle className="w-5 h-5 text-green-400" />
+                            <CheckCircle className="w-4 h-4 text-green-400" />
                           ) : (
-                            <span className="text-gray-400 font-medium">
+                            <span className="text-gray-400 text-sm font-medium">
                               {index + 1}
                             </span>
                           )}
                         </div>
-                        <div>
-                          <h3 className="font-medium text-white">
-                            {problem.titleRu}
-                          </h3>
-                          <p className="text-gray-400 text-sm mt-1">
-                            {problem.descriptionRu}
-                          </p>
-                        </div>
+                        <h3 className="font-medium text-white">
+                          {problem.titleRu}
+                        </h3>
                       </div>
 
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <Badge
                           className={getDifficultyColor(problem.difficulty)}
                           size="sm"

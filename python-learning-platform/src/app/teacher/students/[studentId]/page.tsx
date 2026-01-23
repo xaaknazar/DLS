@@ -9,6 +9,7 @@ import Badge from '@/components/ui/Badge';
 import Progress from '@/components/ui/Progress';
 import Button from '@/components/ui/Button';
 import { achievements } from '@/data/achievements';
+import { shopItems, getShopItemById, getRarityColor } from '@/data/shop';
 import { formatDate, getDifficultyColor, getDifficultyLabel } from '@/lib/utils';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -27,6 +28,15 @@ import {
   Minus,
   Eye,
   X,
+  ShoppingBag,
+  Gift,
+  Trash2,
+  Ban,
+  RotateCcw,
+  Award,
+  Coins,
+  ShieldCheck,
+  ShieldOff,
 } from 'lucide-react';
 
 export default function StudentDetailPage() {
@@ -40,15 +50,22 @@ export default function StudentDetailPage() {
     updateStudentPoints,
     problems: allProblems,
     topics,
+    loadProblems,
+    loadTopics,
   } = useStore();
 
   const [pointsToAdd, setPointsToAdd] = useState(10);
+  const [shopPointsToAdd, setShopPointsToAdd] = useState(100);
   const [isUpdating, setIsUpdating] = useState(false);
   const [viewingCode, setViewingCode] = useState<string | null>(null);
+  const [showShopModal, setShowShopModal] = useState(false);
+  const [shopAction, setShopAction] = useState<'give' | 'remove' | null>(null);
 
   useEffect(() => {
     loadStudents();
     loadSubmissions(studentId);
+    loadProblems();
+    loadTopics();
   }, [studentId]);
 
   const student = students.find((s) => s.id === studentId);
@@ -88,6 +105,157 @@ export default function StudentDetailPage() {
     setIsUpdating(false);
   };
 
+  const handleAddShopPoints = async () => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/shop-points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta: shopPointsToAdd }),
+      });
+      if (!response.ok) throw new Error('Failed');
+      await loadStudents();
+      toast.success(`Добавлено ${shopPointsToAdd} магазинных баллов`);
+    } catch {
+      toast.error('Ошибка при добавлении магазинных баллов');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleDeductShopPoints = async () => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/shop-points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta: -shopPointsToAdd }),
+      });
+      if (!response.ok) throw new Error('Failed');
+      await loadStudents();
+      toast.success(`Снято ${shopPointsToAdd} магазинных баллов`);
+    } catch {
+      toast.error('Ошибка при снятии магазинных баллов');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleShopAction = async (itemId: string, action: 'give' | 'remove') => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/shop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, action }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents(); // Reload to get updated data
+      const item = getShopItemById(itemId);
+      if (action === 'give') {
+        toast.success(`${item?.nameRu} выдан ученику`);
+      } else {
+        toast.success(`${item?.nameRu} убран у ученика`);
+      }
+    } catch {
+      toast.error('Ошибка при управлении предметом');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleRevokeProblem = async (problemId: string, points: number) => {
+    if (!confirm(`Вы уверены? Это уберёт задачу из решённых и снимет ${points} баллов.`)) {
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/revoke-problem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemId, points }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents();
+      toast.success(`Задача отменена, снято ${points} баллов`);
+    } catch {
+      toast.error('Ошибка при отмене задачи');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleRevokeAchievement = async (achievementId: string) => {
+    const achievement = achievements.find(a => a.id === achievementId);
+    const points = achievement?.points || 0;
+
+    if (!confirm(`Вы уверены? Это уберёт достижение "${achievement?.titleRu}" и снимет ${points} баллов.`)) {
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/revoke-achievement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ achievementId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents();
+      toast.success(`Достижение убрано, снято ${points} баллов`);
+    } catch {
+      toast.error('Ошибка при удалении достижения');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleDefendProblem = async (problemId: string, isCurrentlyDefended: boolean) => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/defend-problem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          problemId,
+          action: isCurrentlyDefended ? 'undefend' : 'defend',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents();
+      if (isCurrentlyDefended) {
+        toast.success('Защита снята');
+      } else {
+        toast.success('Задача отмечена как защищённая');
+      }
+    } catch {
+      toast.error('Ошибка при обновлении статуса защиты');
+    }
+    setIsUpdating(false);
+  };
+
+  // Get student's purchased items
+  const studentPurchasedItems = (student?.purchasedItems || [])
+    .map(id => getShopItemById(id))
+    .filter(Boolean);
+
+  // Get items student doesn't have
+  const availableItems = shopItems.filter(
+    item => !student?.purchasedItems?.includes(item.id)
+  );
+
   const viewingSubmission = viewingCode
     ? studentSubmissions.find((s) => s.id === viewingCode)
     : null;
@@ -113,9 +281,31 @@ export default function StudentDetailPage() {
           {/* Profile Card */}
           <Card className="p-6">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {student.name.charAt(0)}
-              </div>
+              {(() => {
+                const avatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
+                const frameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
+
+                if (avatarItem) {
+                  return (
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center overflow-hidden
+                      bg-gradient-to-br ${avatarItem.gradient || 'from-gray-600 to-gray-700'}
+                      ${frameItem?.borderColor || ''}
+                    `}>
+                      {avatarItem.image ? (
+                        <img src={avatarItem.image} alt={avatarItem.nameRu} className="w-14 h-14 object-contain" />
+                      ) : (
+                        <span className="text-3xl">{avatarItem.emoji}</span>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                    {student.name.charAt(0)}
+                  </div>
+                );
+              })()}
               <div>
                 <h2 className="text-xl font-bold text-white">{student.name}</h2>
                 <p className="text-gray-400">{student.grade} класс</p>
@@ -265,6 +455,108 @@ export default function StudentDetailPage() {
           </div>
         </Card>
 
+        {/* Shop Points Management */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+            <Coins className="w-5 h-5 text-yellow-400" />
+            Магазинные баллы
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Добавляйте магазинные баллы отдельно (не влияет на рейтинг). Текущий баланс: <span className="text-yellow-400 font-bold">{student.shopPoints ?? student.points ?? 0}</span>
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">Количество:</span>
+              <input
+                type="number"
+                value={shopPointsToAdd}
+                onChange={(e) => setShopPointsToAdd(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-24 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-center"
+                min="1"
+              />
+            </div>
+            <Button
+              onClick={handleAddShopPoints}
+              disabled={isUpdating}
+              variant="outline"
+              className="border-yellow-500 text-yellow-400 hover:bg-yellow-500/10"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Добавить
+            </Button>
+            <Button
+              onClick={handleDeductShopPoints}
+              disabled={isUpdating}
+              variant="outline"
+              className="border-orange-500 text-orange-400 hover:bg-orange-500/10"
+            >
+              <Minus className="w-4 h-4 mr-2" />
+              Снять
+            </Button>
+          </div>
+        </Card>
+
+        {/* Shop Management */}
+        <Card className="p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5" />
+              Управление покупками
+            </h2>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setShopAction('give'); setShowShopModal(true); }}
+                className="border-green-500 text-green-400 hover:bg-green-500/10"
+              >
+                <Gift className="w-4 h-4 mr-2" />
+                Выдать предмет
+              </Button>
+            </div>
+          </div>
+
+          {studentPurchasedItems.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">У ученика нет покупок</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {studentPurchasedItems.map((item) => item && (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                      ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
+                    `}>
+                      {item.image ? (
+                        <img src={item.image} alt={item.nameRu} className="w-8 h-8 object-contain" />
+                      ) : (
+                        <span className="text-lg">{item.emoji}</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium">{item.nameRu}</p>
+                      <p className={`text-xs ${getRarityColor(item.rarity)}`}>
+                        {item.category === 'reward' ? 'Награда' : item.category === 'avatar' ? 'Аватар' : 'Рамка'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleShopAction(item.id, 'remove')}
+                    disabled={isUpdating}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
         {/* Topics Progress */}
         <Card className="p-6 mb-8">
           <h2 className="text-lg font-semibold text-white mb-4">
@@ -300,6 +592,176 @@ export default function StudentDetailPage() {
               );
             })}
           </div>
+        </Card>
+
+        {/* Completed Problems with Revoke */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-400" />
+            Решённые задачи ({student.completedProblems.length})
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Нажмите "Код" чтобы посмотреть решение. "Сдан" — исключает задачу из проверки на читерство. "Отменить" — убирает решение.
+          </p>
+          {student.completedProblems.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">Ученик ещё не решил ни одной задачи</p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {student.completedProblems.map((problemId) => {
+                const problem = allProblems.find((p) => p.id === problemId);
+                if (!problem) return null;
+
+                // Find the passed submission for this problem
+                const passedSubmission = studentSubmissions.find(
+                  (s) => s.problemId === problemId && s.status === 'passed'
+                );
+
+                // Check if problem is defended
+                const isDefended = student.defendedProblems?.includes(problemId) || false;
+
+                return (
+                  <div
+                    key={problemId}
+                    className={`flex items-center justify-between p-3 rounded-xl transition-colors ${
+                      isDefended
+                        ? 'bg-green-500/10 border border-green-500/30 hover:bg-green-500/15'
+                        : 'bg-gray-800/50 hover:bg-gray-800/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {isDefended ? (
+                        <ShieldCheck className="w-5 h-5 text-green-400" />
+                      ) : (
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white font-medium">{problem.titleRu}</p>
+                          {isDefended && (
+                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                              Защищено
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge
+                            className={getDifficultyColor(problem.difficulty)}
+                            size="sm"
+                          >
+                            {getDifficultyLabel(problem.difficulty)}
+                          </Badge>
+                          <span className="text-yellow-400 text-sm flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            {problem.points}
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            {topics.find(t => t.id === problem.topicId)?.titleRu || 'Тема'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {passedSubmission && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setViewingCode(passedSubmission.id)}
+                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Код
+                        </Button>
+                      )}
+                      <Button
+                        variant={isDefended ? 'outline' : 'ghost'}
+                        size="sm"
+                        onClick={() => handleDefendProblem(problemId, isDefended)}
+                        disabled={isUpdating}
+                        className={isDefended
+                          ? 'border-orange-500/50 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500'
+                          : 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
+                        }
+                        title={isDefended ? 'Снять защиту — задача снова будет проверяться на читерство' : 'Отметить как сданную учителю — исключит из проверки на читерство'}
+                      >
+                        {isDefended ? (
+                          <>
+                            <ShieldOff className="w-4 h-4 mr-1" />
+                            Снять
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4 mr-1" />
+                            Сдан
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRevokeProblem(problemId, problem.points)}
+                        disabled={isUpdating}
+                        className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-1" />
+                        Отменить
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Achievements with Revoke */}
+        <Card className="p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Award className="w-5 h-5 text-purple-400" />
+            Достижения ({earnedAchievements.length})
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Нажмите кнопку отмены, чтобы убрать достижение и снять бонусные баллы
+          </p>
+          {earnedAchievements.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">У ученика пока нет достижений</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {earnedAchievements.map((achievement) => (
+                <div
+                  key={achievement.id}
+                  className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800/70 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-${achievement.color}-500/20`}>
+                      {achievement.icon}
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{achievement.titleRu}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-yellow-400 text-sm flex items-center gap-1">
+                          <Star className="w-3 h-3" />
+                          +{achievement.points}
+                        </span>
+                        <span className="text-gray-500 text-xs">
+                          {achievement.descriptionRu}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRevokeAchievement(achievement.id)}
+                    disabled={isUpdating}
+                    className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-1" />
+                    Убрать
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         {/* Recent Submissions with Code View */}
@@ -395,6 +857,82 @@ export default function StudentDetailPage() {
                   {viewingSubmission.code}
                 </code>
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shop Give Item Modal */}
+      {showShopModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-green-400" />
+                  Выдать предмет
+                </h3>
+                <p className="text-sm text-gray-400">
+                  Выберите предмет для выдачи ученику
+                </p>
+              </div>
+              <button
+                onClick={() => setShowShopModal(false)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(90vh-100px)]">
+              {availableItems.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">
+                  У ученика уже есть все предметы
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {availableItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center overflow-hidden
+                          ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
+                        `}>
+                          {item.image ? (
+                            <img src={item.image} alt={item.nameRu} className="w-10 h-10 object-contain" />
+                          ) : (
+                            <span className="text-2xl">{item.emoji}</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{item.nameRu}</p>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs ${getRarityColor(item.rarity)}`}>
+                              {item.category === 'reward' ? 'Награда' : item.category === 'avatar' ? 'Аватар' : 'Рамка'}
+                            </span>
+                            <span className="text-xs text-yellow-400">
+                              {item.price} ⭐
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleShopAction(item.id, 'give');
+                          setShowShopModal(false);
+                        }}
+                        disabled={isUpdating}
+                        className="border-green-500 text-green-400 hover:bg-green-500/10"
+                      >
+                        <Gift className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

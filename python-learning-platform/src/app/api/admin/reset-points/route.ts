@@ -27,6 +27,7 @@ export async function POST() {
         return {
           ...user,
           points: 0,
+          shopPoints: 0,
           completedProblems: [],
           achievements: [],
           streakDays: 0,

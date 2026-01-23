@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@/lib/store';
-import { Student } from '@/types';
+import { Student, Topic } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Progress from '@/components/ui/Progress';
@@ -14,6 +14,54 @@ import {
   CheckCircle,
   Lock,
 } from 'lucide-react';
+
+// Color mapping to avoid dynamic Tailwind classes that don't compile
+const colorClasses: Record<string, { bg: string; bgGradient: string; border: string; text: string }> = {
+  blue: {
+    bg: 'bg-blue-500/5',
+    bgGradient: 'bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-blue-500/20',
+    border: 'border-blue-500/20',
+    text: 'text-blue-400',
+  },
+  green: {
+    bg: 'bg-green-500/5',
+    bgGradient: 'bg-gradient-to-br from-green-500/20 to-green-600/20 border-green-500/20',
+    border: 'border-green-500/20',
+    text: 'text-green-400',
+  },
+  purple: {
+    bg: 'bg-purple-500/5',
+    bgGradient: 'bg-gradient-to-br from-purple-500/20 to-purple-600/20 border-purple-500/20',
+    border: 'border-purple-500/20',
+    text: 'text-purple-400',
+  },
+  orange: {
+    bg: 'bg-orange-500/5',
+    bgGradient: 'bg-gradient-to-br from-orange-500/20 to-orange-600/20 border-orange-500/20',
+    border: 'border-orange-500/20',
+    text: 'text-orange-400',
+  },
+  red: {
+    bg: 'bg-red-500/5',
+    bgGradient: 'bg-gradient-to-br from-red-500/20 to-red-600/20 border-red-500/20',
+    border: 'border-red-500/20',
+    text: 'text-red-400',
+  },
+  yellow: {
+    bg: 'bg-yellow-500/5',
+    bgGradient: 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border-yellow-500/20',
+    border: 'border-yellow-500/20',
+    text: 'text-yellow-400',
+  },
+  pink: {
+    bg: 'bg-pink-500/5',
+    bgGradient: 'bg-gradient-to-br from-pink-500/20 to-pink-600/20 border-pink-500/20',
+    border: 'border-pink-500/20',
+    text: 'text-pink-400',
+  },
+};
+
+const getColorClasses = (color: string) => colorClasses[color] || colorClasses.blue;
 
 export default function TopicsPage() {
   const { user } = useStore();
@@ -32,24 +80,19 @@ export default function TopicsPage() {
 
       <div className="p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {topics.map((topic, index) => {
+          {topics.map((topic) => {
             const problems = getProblemsByTopic(topic.id);
             const completed = problems.filter((p) =>
               student.completedProblems.includes(p.id)
             ).length;
-            const isCompleted = completed === problems.length;
-            const progress = (completed / problems.length) * 100;
+            const isCompleted = problems.length > 0 && completed === problems.length;
+            const progress = problems.length > 0 ? (completed / problems.length) * 100 : 0;
+            const hasStarted = completed > 0;
 
-            // Check if previous topic is completed (for unlocking)
-            const previousTopic = topics[index - 1];
-            const previousProblems = previousTopic
-              ? getProblemsByTopic(previousTopic.id)
-              : [];
-            const previousCompleted = previousProblems.filter((p) =>
-              student.completedProblems.includes(p.id)
-            ).length;
-            const isLocked =
-              index > 0 && previousCompleted < previousProblems.length * 0.5;
+            // Only teacher lock matters - topic.isLocked
+            const isLocked = topic.isLocked || false;
+
+            const colors = getColorClasses(topic.color);
 
             return (
               <Link
@@ -65,21 +108,21 @@ export default function TopicsPage() {
                 >
                   {/* Background decoration */}
                   <div
-                    className={`absolute -right-8 -top-8 w-32 h-32 rounded-full bg-${topic.color}-500/5`}
+                    className={`absolute -right-8 -top-8 w-32 h-32 rounded-full ${colors.bg}`}
                   />
 
                   <div className="relative">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-4">
                         <div
-                          className={`w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-${topic.color}-500/20 to-${topic.color}-600/20 border border-${topic.color}-500/20`}
+                          className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colors.bgGradient} border`}
                         >
                           {isLocked ? (
                             <Lock className="w-6 h-6 text-gray-500" />
                           ) : isCompleted ? (
-                            <CheckCircle className={`w-6 h-6 text-${topic.color}-400`} />
+                            <CheckCircle className={`w-6 h-6 ${colors.text}`} />
                           ) : (
-                            <BookOpen className={`w-6 h-6 text-${topic.color}-400`} />
+                            <BookOpen className={`w-6 h-6 ${colors.text}`} />
                           )}
                         </div>
                         <div>
@@ -89,11 +132,15 @@ export default function TopicsPage() {
                           <p className="text-gray-400 text-sm">{topic.title}</p>
                         </div>
                       </div>
-                      {isCompleted && (
+                      {isCompleted ? (
                         <Badge variant="success" size="sm">
                           Пройдено
                         </Badge>
-                      )}
+                      ) : isLocked ? (
+                        <Badge variant="default" size="sm" className="bg-gray-700 text-gray-400">
+                          Закрыта
+                        </Badge>
+                      ) : null}
                     </div>
 
                     <p className="text-gray-400 text-sm mb-4 line-clamp-2">
@@ -112,7 +159,7 @@ export default function TopicsPage() {
                     {!isLocked && (
                       <div className="flex items-center justify-end mt-4 text-blue-400">
                         <span className="text-sm">
-                          {isCompleted ? 'Повторить' : 'Продолжить'}
+                          {isCompleted ? 'Повторить' : hasStarted ? 'Продолжить' : 'Начать'}
                         </span>
                         <ChevronRight className="w-4 h-4 ml-1" />
                       </div>
@@ -121,7 +168,7 @@ export default function TopicsPage() {
                     {isLocked && (
                       <div className="mt-4 text-gray-500 text-sm flex items-center gap-2">
                         <Lock className="w-4 h-4" />
-                        Пройдите 50% предыдущей темы
+                        Тема закрыта учителем
                       </div>
                     )}
                   </div>

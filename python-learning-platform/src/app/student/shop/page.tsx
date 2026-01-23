@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { Student } from '@/types';
 import Header from '@/components/layout/Header';
@@ -15,19 +15,101 @@ import {
   Crown,
   Gem,
   Zap,
+  Gift,
+  Flame,
+  History,
+  ChevronDown,
+  ChevronUp,
+  Calculator,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-type Category = 'all' | 'avatar' | 'frame';
+type Category = 'all' | 'avatar' | 'frame' | 'reward';
 
 export default function ShopPage() {
   const { user } = useStore();
   const [selectedCategory, setSelectedCategory] = useState<Category>('all');
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [syncedStudent, setSyncedStudent] = useState<Student | null>(null);
+  const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
+  const [pointsBreakdown, setPointsBreakdown] = useState<any>(null);
+  const [loadingBreakdown, setLoadingBreakdown] = useState(false);
 
-  const student = user as Student;
+  const initialStudent = user as Student;
+
+  // Sync user data from server on mount to ensure shopPoints is up to date
+  useEffect(() => {
+    const syncData = async () => {
+      if (!initialStudent?.id) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/students/${initialStudent.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          console.log('[Shop] Synced student data:', {
+            points: data.points,
+            shopPoints: data.shopPoints,
+            completedProblems: data.completedProblems?.length || 0
+          });
+          useStore.setState({ user: data });
+          sessionStorage.setItem('user', JSON.stringify(data));
+          setSyncedStudent(data);
+        } else {
+          // Fallback to store data
+          setSyncedStudent(initialStudent);
+        }
+      } catch (error) {
+        console.error('[Shop] Failed to sync data:', error);
+        // Fallback to store data
+        setSyncedStudent(initialStudent);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    syncData();
+  }, [initialStudent?.id]);
+
+  // Fetch points breakdown
+  const fetchPointsBreakdown = async () => {
+    if (!initialStudent?.id) return;
+
+    setLoadingBreakdown(true);
+    try {
+      const res = await fetch(`/api/students/${initialStudent.id}/points-breakdown`);
+      if (res.ok) {
+        const data = await res.json();
+        setPointsBreakdown(data);
+        console.log('[Shop] Points breakdown fetched - check server logs for details');
+      }
+    } catch (error) {
+      console.error('[Shop] Failed to fetch points breakdown:', error);
+    } finally {
+      setLoadingBreakdown(false);
+    }
+  };
+
+  // Use synced data or fallback to store data
+  const student = syncedStudent || initialStudent;
 
   if (!student) return null;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <Header title="Магазин" subtitle="Загрузка..." />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-400 border-t-transparent"></div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const filteredItems = selectedCategory === 'all'
     ? shopItems
@@ -35,15 +117,18 @@ export default function ShopPage() {
 
   const sortedItems = [...filteredItems].sort((a, b) => {
     // Sort by rarity then price
-    const rarityOrder = { common: 0, rare: 1, epic: 2, legendary: 3 };
+    const rarityOrder = { common: 0, rare: 1, epic: 2, legendary: 3, mythic: 4 };
     if (rarityOrder[a.rarity] !== rarityOrder[b.rarity]) {
       return rarityOrder[a.rarity] - rarityOrder[b.rarity];
     }
     return a.price - b.price;
   });
 
+  // Используем shopPoints для покупок (если есть), иначе points для обратной совместимости
+  const shopBalance = student.shopPoints ?? student.points ?? 0;
+
   const handlePurchase = async (item: ShopItem) => {
-    if (student.points < item.price) {
+    if (shopBalance < item.price) {
       toast.error('Недостаточно баллов!');
       return;
     }
@@ -72,7 +157,11 @@ export default function ShopPage() {
       useStore.setState({ user: updatedStudent });
       sessionStorage.setItem('user', JSON.stringify(updatedStudent));
 
-      toast.success(`${item.nameRu} куплен!`);
+      if (item.category === 'reward') {
+        toast.success(`🎉 ${item.nameRu} получен! Покажи учителю для активации.`);
+      } else {
+        toast.success(`${item.nameRu} куплен!`);
+      }
     } catch (error) {
       toast.error('Ошибка покупки');
     } finally {
@@ -116,6 +205,7 @@ export default function ShopPage() {
       case 'rare': return <Gem className="w-4 h-4" />;
       case 'epic': return <Sparkles className="w-4 h-4" />;
       case 'legendary': return <Crown className="w-4 h-4" />;
+      case 'mythic': return <Flame className="w-4 h-4" />;
     }
   };
 
@@ -125,6 +215,7 @@ export default function ShopPage() {
       case 'rare': return 'Редкий';
       case 'epic': return 'Эпический';
       case 'legendary': return 'Легендарный';
+      case 'mythic': return 'Мифический';
     }
   };
 
@@ -132,9 +223,16 @@ export default function ShopPage() {
   const equippedAvatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
   const equippedFrameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
 
+  // Get purchase history
+  const purchaseHistory = (student.purchasedItems || [])
+    .map(itemId => getShopItemById(itemId))
+    .filter((item): item is ShopItem => item !== undefined);
+
+  const totalSpent = purchaseHistory.reduce((sum, item) => sum + item.price, 0);
+
   return (
     <div className="min-h-screen">
-      <Header title="Магазин" subtitle="Обменяй баллы на крутые аватары" />
+      <Header title="Магазин" subtitle="Обменяй баллы на крутые аватары и награды" />
 
       <div className="p-8">
         {/* Balance & Preview */}
@@ -143,11 +241,17 @@ export default function ShopPage() {
           <Card className="p-6 lg:col-span-2">
             <h3 className="text-lg font-semibold text-white mb-4">Твой аватар</h3>
             <div className="flex items-center gap-6">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl
-                ${equippedAvatarItem ? `bg-gradient-to-br ${equippedAvatarItem.gradient}` : 'bg-gradient-to-br from-green-500 to-emerald-600'}
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden
+                ${equippedAvatarItem ? `bg-gradient-to-br ${equippedAvatarItem.gradient || 'from-gray-600 to-gray-700'}` : 'bg-gradient-to-br from-green-500 to-emerald-600'}
                 ${equippedFrameItem?.borderColor || ''}
               `}>
-                {equippedAvatarItem?.emoji || student.name.charAt(0)}
+                {equippedAvatarItem?.image ? (
+                  <img src={equippedAvatarItem.image} alt={equippedAvatarItem.nameRu} className="w-20 h-20 object-contain" />
+                ) : equippedAvatarItem?.emoji ? (
+                  <span className="text-4xl">{equippedAvatarItem.emoji}</span>
+                ) : (
+                  <span className="text-4xl text-white font-bold">{student.name.charAt(0)}</span>
+                )}
               </div>
               <div>
                 <p className="text-xl font-bold text-white">{student.name}</p>
@@ -169,60 +273,214 @@ export default function ShopPage() {
           {/* Balance */}
           <Card className="p-6 bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-500/30">
             <div className="flex items-center gap-3 mb-2">
-              <Star className="w-6 h-6 text-yellow-400" />
-              <span className="text-gray-400">Баланс</span>
+              <ShoppingBag className="w-6 h-6 text-yellow-400" />
+              <span className="text-gray-400">Баланс магазина</span>
             </div>
-            <p className="text-4xl font-bold text-yellow-400">{student.points}</p>
-            <p className="text-gray-500 text-sm mt-1">баллов</p>
+            <p className="text-4xl font-bold text-yellow-400">{shopBalance}</p>
+            <p className="text-gray-500 text-sm mt-1">баллов для покупок</p>
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <div className="flex items-center gap-2 text-sm">
+                <Star className="w-4 h-4 text-blue-400" />
+                <span className="text-gray-400">Рейтинг:</span>
+                <span className="text-blue-400 font-medium">{student.points}</span>
+              </div>
+            </div>
           </Card>
         </div>
 
+        {/* Purchase History & Points Breakdown */}
+        <Card className="p-4 mb-8">
+          <button
+            onClick={() => {
+              setShowPurchaseHistory(!showPurchaseHistory);
+              if (!showPurchaseHistory && !pointsBreakdown) {
+                fetchPointsBreakdown();
+              }
+            }}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <History className="w-5 h-5 text-purple-400" />
+              <span className="text-white font-medium">История покупок и баллы</span>
+              <span className="text-gray-500 text-sm">({purchaseHistory.length} покупок)</span>
+            </div>
+            {showPurchaseHistory ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+
+          {showPurchaseHistory && (
+            <div className="mt-4 pt-4 border-t border-gray-700">
+              {/* Points Breakdown Summary */}
+              {loadingBreakdown ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-400 border-t-transparent"></div>
+                </div>
+              ) : pointsBreakdown ? (
+                <div className="mb-6 p-4 bg-gray-800/50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calculator className="w-5 h-5 text-purple-400" />
+                    <span className="text-white font-medium">Разбивка баллов</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-400">За задачи</p>
+                      <p className="text-green-400 font-bold">+{pointsBreakdown.summary.problemPoints}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">За достижения</p>
+                      <p className="text-blue-400 font-bold">+{pointsBreakdown.summary.achievementPoints}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Потрачено</p>
+                      <p className="text-red-400 font-bold">-{pointsBreakdown.summary.spentPoints}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Остаток</p>
+                      <p className="text-yellow-400 font-bold">= {pointsBreakdown.summary.shopBalance}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
+                    <p>Формула: Баланс = (Задачи + Достижения) - Потрачено</p>
+                    <p>= ({pointsBreakdown.summary.problemPoints} + {pointsBreakdown.summary.achievementPoints}) - {pointsBreakdown.summary.spentPoints} = {pointsBreakdown.summary.shopBalance}</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={fetchPointsBreakdown}
+                  className="mb-4 px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors"
+                >
+                  <Calculator className="w-4 h-4 inline mr-2" />
+                  Загрузить детальную разбивку
+                </button>
+              )}
+
+              {/* Purchase History List */}
+              {purchaseHistory.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Пока нет покупок</p>
+              ) : (
+                <>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {purchaseHistory.map((item, index) => (
+                      <div
+                        key={`${item.id}-${index}`}
+                        className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                              ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
+                            `}
+                          >
+                            {item.image ? (
+                              <img src={item.image} alt={item.nameRu} className="w-8 h-8 object-contain" />
+                            ) : (
+                              <span className="text-lg">{item.emoji || '?'}</span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-white text-sm font-medium">{item.nameRu}</p>
+                            <p className={`text-xs ${getRarityColor(item.rarity)}`}>
+                              {getRarityName(item.rarity)} • {item.category === 'avatar' ? 'Аватар' : item.category === 'frame' ? 'Рамка' : 'Награда'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-red-400">
+                          <Star className="w-4 h-4" />
+                          <span className="font-medium">-{item.price}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center">
+                    <span className="text-gray-400">Всего потрачено:</span>
+                    <div className="flex items-center gap-1 text-red-400 font-bold">
+                      <Star className="w-5 h-5" />
+                      <span>{totalSpent}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </Card>
+
         {/* Category Filter */}
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-6">
           <ShoppingBag className="w-5 h-5 text-gray-400" />
           <span className="text-gray-400 mr-2">Категория:</span>
           {[
-            { key: 'all', label: 'Все' },
-            { key: 'avatar', label: 'Аватары' },
-            { key: 'frame', label: 'Рамки' },
-          ].map(({ key, label }) => (
+            { key: 'all', label: 'Все', icon: null },
+            { key: 'avatar', label: 'Аватары', icon: '🎭' },
+            { key: 'frame', label: 'Рамки', icon: '🖼️' },
+            { key: 'reward', label: 'Награды', icon: '🎁' },
+          ].map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setSelectedCategory(key as Category)}
-              className={`px-4 py-2 rounded-xl font-medium transition-all ${
+              className={`px-4 py-2 rounded-xl font-medium transition-all flex items-center gap-2 ${
                 selectedCategory === key
-                  ? 'bg-blue-500 text-white'
+                  ? key === 'reward'
+                    ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white'
+                    : 'bg-blue-500 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
+              {icon && <span>{icon}</span>}
               {label}
             </button>
           ))}
         </div>
+
+        {/* Rewards Info Banner */}
+        {selectedCategory === 'reward' && (
+          <Card className="p-4 mb-6 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border-yellow-500/30">
+            <div className="flex items-center gap-3">
+              <Gift className="w-6 h-6 text-yellow-400" />
+              <div>
+                <p className="text-white font-medium">Как использовать награды?</p>
+                <p className="text-gray-400 text-sm">
+                  После покупки награды покажи её учителю. Он активирует награду для тебя!
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Items Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {sortedItems.map((item) => {
             const owned = isOwned(item.id);
             const equipped = isEquipped(item);
-            const canAfford = student.points >= item.price;
+            const canAfford = shopBalance >= item.price;
+            const isReward = item.category === 'reward';
 
             return (
               <Card
                 key={item.id}
                 className={`p-4 border transition-all hover:scale-105 ${getRarityBg(item.rarity)} ${
                   equipped ? 'ring-2 ring-blue-500' : ''
-                }`}
+                } ${isReward && owned ? 'ring-2 ring-yellow-500' : ''}`}
               >
                 {/* Item Preview */}
                 <div className="flex justify-center mb-4">
                   <div
-                    className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl
+                    className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden
                       ${item.gradient ? `bg-gradient-to-br ${item.gradient}` : 'bg-gray-700'}
                       ${item.borderColor || ''}
                     `}
                   >
-                    {item.emoji || '?'}
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.nameRu}
+                        className="w-16 h-16 object-contain"
+                      />
+                    ) : (
+                      <span className="text-3xl">{item.emoji || '?'}</span>
+                    )}
                   </div>
                 </div>
 
@@ -241,33 +499,53 @@ export default function ShopPage() {
                   <div className="flex items-center gap-1">
                     <Star className="w-4 h-4 text-yellow-400" />
                     <span className={`font-bold ${canAfford || owned ? 'text-yellow-400' : 'text-red-400'}`}>
-                      {item.price}
+                      {item.price.toLocaleString()}
                     </span>
                   </div>
 
-                  {owned ? (
-                    equipped ? (
-                      <div className="flex items-center gap-1 text-green-400 text-sm">
-                        <Check className="w-4 h-4" />
-                        Надето
+                  {isReward ? (
+                    // Rewards can only be purchased, not equipped
+                    owned ? (
+                      <div className="flex items-center gap-1 text-yellow-400 text-sm font-medium">
+                        <Gift className="w-4 h-4" />
+                        Получено
                       </div>
                     ) : (
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => handleEquip(item)}
+                        disabled={!canAfford || purchasing === item.id}
+                        onClick={() => handlePurchase(item)}
+                        className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600"
                       >
-                        Надеть
+                        {purchasing === item.id ? '...' : 'Купить'}
                       </Button>
                     )
                   ) : (
-                    <Button
-                      size="sm"
-                      disabled={!canAfford || purchasing === item.id}
-                      onClick={() => handlePurchase(item)}
-                    >
-                      {purchasing === item.id ? '...' : 'Купить'}
-                    </Button>
+                    // Avatars and frames can be purchased and equipped
+                    owned ? (
+                      equipped ? (
+                        <div className="flex items-center gap-1 text-green-400 text-sm">
+                          <Check className="w-4 h-4" />
+                          Надето
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEquip(item)}
+                        >
+                          Надеть
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        size="sm"
+                        disabled={!canAfford || purchasing === item.id}
+                        onClick={() => handlePurchase(item)}
+                      >
+                        {purchasing === item.id ? '...' : 'Купить'}
+                      </Button>
+                    )
                   )}
                 </div>
               </Card>
@@ -278,8 +556,7 @@ export default function ShopPage() {
         {/* Info */}
         <div className="mt-8 p-4 bg-gray-800/50 rounded-xl">
           <p className="text-gray-400 text-sm text-center">
-            Решай задачи и получай баллы, чтобы покупать крутые аватары!
-            Легендарные аватары имеют анимацию свечения.
+            🎮 Решай задачи и получай баллы! Легендарные и мифические предметы имеют анимацию свечения.
           </p>
         </div>
       </div>

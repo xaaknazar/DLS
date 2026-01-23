@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="50" fill="#0a0a0a"/>
+  <!-- Matrix rain effect -->
+  <text x="10" y="20" fill="#22c55e" font-family="monospace" font-size="10">01</text>
+  <text x="25" y="35" fill="#4ade80" font-family="monospace" font-size="10">10</text>
+  <text x="40" y="15" fill="#22c55e" font-family="monospace" font-size="10">11</text>
+  <text x="55" y="28" fill="#86efac" font-family="monospace" font-size="10">00</text>
+  <text x="70" y="18" fill="#22c55e" font-family="monospace" font-size="10">01</text>
+  <text x="85" y="30" fill="#4ade80" font-family="monospace" font-size="10">10</text>
+  <text x="15" y="50" fill="#4ade80" font-family="monospace" font-size="10">00</text>
+  <text x="80" y="55" fill="#22c55e" font-family="monospace" font-size="10">11</text>
+  <text x="10" y="75" fill="#86efac" font-family="monospace" font-size="10">10</text>
+  <text x="30" y="85" fill="#22c55e" font-family="monospace" font-size="10">01</text>
+  <text x="60" y="80" fill="#4ade80" font-family="monospace" font-size="10">00</text>
+  <text x="85" y="90" fill="#22c55e" font-family="monospace" font-size="10">11</text>
+  <!-- Center skull/hacker symbol -->
+  <circle cx="50" cy="50" r="25" fill="#166534"/>
+  <circle cx="42" cy="45" r="6" fill="#22c55e"/>
+  <circle cx="58" cy="45" r="6" fill="#22c55e"/>
+  <rect x="40" y="58" width="20" height="3" fill="#22c55e"/>
+</svg>

@@ -1,13 +1,14 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { Play, RotateCcw, Loader2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import { SubmissionMetadata } from '@/types';
 
 interface CodeEditorProps {
   initialCode: string;
-  onRun: (code: string) => Promise<void>;
+  onRun: (code: string, metadata?: SubmissionMetadata) => Promise<void>;
   isRunning?: boolean;
 }
 
@@ -15,8 +16,53 @@ export default function CodeEditor({ initialCode, onRun, isRunning = false }: Co
   const [code, setCode] = useState(initialCode);
   const editorRef = useRef<any>(null);
 
+  // Metadata tracking
+  const startTimeRef = useRef<Date>(new Date());
+  const keystrokeCountRef = useRef<number>(0);
+  const pasteCountRef = useRef<number>(0);
+  const tabSwitchCountRef = useRef<number>(0);
+
+  // Reset metadata when problem changes (initialCode changes)
+  useEffect(() => {
+    startTimeRef.current = new Date();
+    keystrokeCountRef.current = 0;
+    pasteCountRef.current = 0;
+    tabSwitchCountRef.current = 0;
+  }, [initialCode]);
+
+  // Track tab switches
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        tabSwitchCountRef.current++;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Track paste events
+  useEffect(() => {
+    const handlePaste = () => {
+      pasteCountRef.current++;
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, []);
+
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
+
+    // Track keystrokes
+    editor.onKeyDown(() => {
+      keystrokeCountRef.current++;
+    });
   };
 
   const handleReset = () => {
@@ -24,10 +70,27 @@ export default function CodeEditor({ initialCode, onRun, isRunning = false }: Co
     if (editorRef.current) {
       editorRef.current.setValue(initialCode);
     }
+    // Reset metadata on code reset
+    startTimeRef.current = new Date();
+    keystrokeCountRef.current = 0;
+    pasteCountRef.current = 0;
   };
 
   const handleRun = async () => {
-    await onRun(code);
+    // Collect metadata
+    const timeSpentSeconds = Math.round(
+      (new Date().getTime() - startTimeRef.current.getTime()) / 1000
+    );
+
+    const metadata: SubmissionMetadata = {
+      startedAt: startTimeRef.current,
+      timeSpentSeconds,
+      keystrokeCount: keystrokeCountRef.current,
+      pasteCount: pasteCountRef.current,
+      tabSwitchCount: tabSwitchCountRef.current,
+    };
+
+    await onRun(code, metadata);
   };
 
   return (

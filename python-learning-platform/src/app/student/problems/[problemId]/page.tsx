@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { Student, TestResult, Problem, Topic } from '@/types';
+import { Student, TestResult, Problem, Topic, SubmissionMetadata } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -24,8 +24,10 @@ import {
   ChevronUp,
   PartyPopper,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 
 export default function ProblemPage() {
   const params = useParams();
@@ -107,9 +109,18 @@ export default function ProblemPage() {
     }
   }, [nextProblem, problem, router]);
 
+  // Check if topic is locked
+  const isTopicLocked = topic?.isLocked || false;
+
   // Run code callback - must be before any conditional returns
-  const runCode = useCallback(async (code: string) => {
+  const runCode = useCallback(async (code: string, metadata?: SubmissionMetadata) => {
     if (!problem || !student) return;
+
+    // Check if topic is locked
+    if (topic?.isLocked) {
+      toast.error('Тема закрыта. Вы не можете отправлять решения.');
+      return;
+    }
 
     if (!pyodideReady) {
       toast.error('Python загружается, подождите...');
@@ -150,7 +161,7 @@ export default function ProblemPage() {
     const allPassed = results.every((r) => r.passed);
     const passedCount = results.filter((r) => r.passed).length;
 
-    // Create submission via API
+    // Create submission via API with metadata for cheat detection
     try {
       await createSubmission({
         problemId: problem.id,
@@ -161,7 +172,14 @@ export default function ProblemPage() {
         passedTests: passedCount,
         totalTests: results.length,
         executionTime: results.reduce((sum, r) => sum + r.executionTime, 0),
-      } as any);
+        metadata: metadata ? {
+          startedAt: metadata.startedAt,
+          timeSpentSeconds: metadata.timeSpentSeconds,
+          keystrokeCount: metadata.keystrokeCount,
+          pasteCount: metadata.pasteCount,
+          tabSwitchCount: metadata.tabSwitchCount,
+        } : undefined,
+      });
 
       if (allPassed && !isCompleted) {
         setEarnedPoints(problem.points);
@@ -176,7 +194,7 @@ export default function ProblemPage() {
     }
 
     setIsRunning(false);
-  }, [problem, student, isCompleted, pyodideReady, createSubmission]);
+  }, [problem, student, isCompleted, pyodideReady, createSubmission, topic]);
 
   // Now the conditional returns
   if (!student) return null;
@@ -263,6 +281,17 @@ export default function ProblemPage() {
       )}
 
       <div className="p-8">
+        {/* Topic Locked Warning */}
+        {isTopicLocked && (
+          <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+            <div>
+              <p className="text-yellow-400 font-medium">Тема закрыта</p>
+              <p className="text-gray-400 text-sm">Вы можете просматривать задачу, но не можете отправлять решения.</p>
+            </div>
+          </div>
+        )}
+
         {/* Back button */}
         <div className="flex items-center justify-between mb-4">
           <Link href={`/student/topics/${problem.topicId}`}>
@@ -309,7 +338,7 @@ export default function ProblemPage() {
 
               {/* Description */}
               <h2 className="text-lg font-semibold text-white mb-2">Описание</h2>
-              <p className="text-gray-300 mb-6">{problem.descriptionRu}</p>
+              <MarkdownRenderer content={problem.descriptionRu} className="mb-6" />
 
               {/* Test cases preview */}
               <h3 className="text-lg font-semibold text-white mb-3">Примеры</h3>
