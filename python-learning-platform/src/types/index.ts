@@ -28,6 +28,8 @@ export interface Student extends User {
   // Rank tracking
   previousRank?: number;    // Предыдущая позиция в рейтинге (для отображения изменений)
   rankUpdatedAt?: Date;     // Когда последний раз обновлялся рейтинг
+  // Defended problems (for cheat detection exclusion)
+  defendedProblems?: string[]; // Задачи, которые ученик защитил перед учителем (исключаются из проверки на читерство)
 }
 
 export interface Teacher extends User {

@@ -154,6 +154,14 @@ export async function GET(request: NextRequest) {
       ? submissions.filter(s => studentIds.has(s.studentId))
       : submissions;
 
+    // Build defended problems map from students
+    const defendedStudentProblems = new Map<string, Set<string>>();
+    for (const student of students) {
+      if (student.defendedProblems && student.defendedProblems.length > 0) {
+        defendedStudentProblems.set(student.id, new Set(student.defendedProblems));
+      }
+    }
+
     // NEW: Combined action to get all category stats in one request
     if (action === 'all-stats') {
       const cached = getCachedData<{
@@ -166,8 +174,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(cached);
       }
 
-      // Compute analysis once
-      const similarityMatches = findSimilarSubmissions(filteredSubmissions, problems, threshold);
+      // Compute analysis once (with defended problems filter)
+      const similarityMatches = findSimilarSubmissions(filteredSubmissions, problems, threshold, defendedStudentProblems);
       const problemMap = new Map(problems.map(p => [p.id, p]));
       const submissionsByProblem = new Map<string, Submission[]>();
 
@@ -181,7 +189,9 @@ export async function GET(request: NextRequest) {
         const problem = problemMap.get(sub.problemId);
         if (!problem) return { ...sub, cheatFlags: [], cheatScore: 0 };
         const problemSubmissions = submissionsByProblem.get(sub.problemId) || [];
-        return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions);
+        // Check if this submission is defended by the student
+        const isDefended = defendedStudentProblems.get(sub.studentId)?.has(sub.problemId) || false;
+        return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions, isDefended);
       });
 
       // Compute all student data once
@@ -222,8 +232,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(result);
     }
 
-    // Find similarity matches (now uses problem-specific thresholds)
-    const similarityMatches = findSimilarSubmissions(filteredSubmissions, problems, threshold);
+    // Find similarity matches (now uses problem-specific thresholds and defended problems filter)
+    const similarityMatches = findSimilarSubmissions(filteredSubmissions, problems, threshold, defendedStudentProblems);
 
     // Analyze all submissions
     const problemMap = new Map(problems.map(p => [p.id, p]));
@@ -240,8 +250,10 @@ export async function GET(request: NextRequest) {
       if (!problem) return { ...sub, cheatFlags: [], cheatScore: 0 };
 
       const problemSubmissions = submissionsByProblem.get(sub.problemId) || [];
+      // Check if this submission is defended by the student
+      const isDefended = defendedStudentProblems.get(sub.studentId)?.has(sub.problemId) || false;
       // Use metadata from submission if available
-      return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions);
+      return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions, isDefended);
     });
 
     // If action is 'students' - return list of students with their cheat summary
@@ -393,10 +405,19 @@ export async function POST(request: NextRequest) {
 
     if (action === 'analyze') {
       // Analyze specific submissions
-      const [submissions, problems] = await Promise.all([
+      const [submissions, problems, students] = await Promise.all([
         getSubmissions(),
         getProblems(),
+        getStudents(),
       ]);
+
+      // Build defended problems map from students
+      const defendedStudentProblems = new Map<string, Set<string>>();
+      for (const student of students) {
+        if (student.defendedProblems && student.defendedProblems.length > 0) {
+          defendedStudentProblems.set(student.id, new Set(student.defendedProblems));
+        }
+      }
 
       const targetSubmissions = submissionIds
         ? submissions.filter((s: Submission) => submissionIds.includes(s.id))
@@ -418,8 +439,10 @@ export async function POST(request: NextRequest) {
         if (!problem) return { ...sub, cheatFlags: [], cheatScore: 0 };
 
         const problemSubmissions = submissionsByProblem.get(sub.problemId) || [];
+        // Check if this submission is defended by the student
+        const isDefended = defendedStudentProblems.get(sub.studentId)?.has(sub.problemId) || false;
         // Use metadata from submission if available
-        return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions);
+        return analyzeSubmission(sub, sub.metadata, problem, problemSubmissions, isDefended);
       });
 
       return NextResponse.json({

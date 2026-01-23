@@ -35,6 +35,8 @@ import {
   RotateCcw,
   Award,
   Coins,
+  ShieldCheck,
+  ShieldOff,
 } from 'lucide-react';
 
 export default function StudentDetailPage() {
@@ -212,6 +214,34 @@ export default function StudentDetailPage() {
       toast.success(`Достижение убрано, снято ${points} баллов`);
     } catch {
       toast.error('Ошибка при удалении достижения');
+    }
+    setIsUpdating(false);
+  };
+
+  const handleDefendProblem = async (problemId: string, isCurrentlyDefended: boolean) => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/students/${studentId}/defend-problem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          problemId,
+          action: isCurrentlyDefended ? 'undefend' : 'defend',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed');
+      }
+
+      await loadStudents();
+      if (isCurrentlyDefended) {
+        toast.success('Защита снята');
+      } else {
+        toast.success('Задача отмечена как защищённая');
+      }
+    } catch {
+      toast.error('Ошибка при обновлении статуса защиты');
     }
     setIsUpdating(false);
   };
@@ -571,7 +601,7 @@ export default function StudentDetailPage() {
             Решённые задачи ({student.completedProblems.length})
           </h2>
           <p className="text-gray-400 text-sm mb-4">
-            Нажмите "Код" чтобы посмотреть решение. Если ученик списал - нажмите "Отменить"
+            Нажмите "Код" чтобы посмотреть решение. "Сдан" — исключает задачу из проверки на читерство. "Отменить" — убирает решение.
           </p>
           {student.completedProblems.length === 0 ? (
             <p className="text-gray-400 text-center py-4">Ученик ещё не решил ни одной задачи</p>
@@ -586,15 +616,33 @@ export default function StudentDetailPage() {
                   (s) => s.problemId === problemId && s.status === 'passed'
                 );
 
+                // Check if problem is defended
+                const isDefended = student.defendedProblems?.includes(problemId) || false;
+
                 return (
                   <div
                     key={problemId}
-                    className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800/70 transition-colors"
+                    className={`flex items-center justify-between p-3 rounded-xl transition-colors ${
+                      isDefended
+                        ? 'bg-green-500/10 border border-green-500/30 hover:bg-green-500/15'
+                        : 'bg-gray-800/50 hover:bg-gray-800/70'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      {isDefended ? (
+                        <ShieldCheck className="w-5 h-5 text-green-400" />
+                      ) : (
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                      )}
                       <div>
-                        <p className="text-white font-medium">{problem.titleRu}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white font-medium">{problem.titleRu}</p>
+                          {isDefended && (
+                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                              Защищено
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge
                             className={getDifficultyColor(problem.difficulty)}
@@ -624,6 +672,29 @@ export default function StudentDetailPage() {
                           Код
                         </Button>
                       )}
+                      <Button
+                        variant={isDefended ? 'outline' : 'ghost'}
+                        size="sm"
+                        onClick={() => handleDefendProblem(problemId, isDefended)}
+                        disabled={isUpdating}
+                        className={isDefended
+                          ? 'border-orange-500/50 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500'
+                          : 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
+                        }
+                        title={isDefended ? 'Снять защиту — задача снова будет проверяться на читерство' : 'Отметить как сданную учителю — исключит из проверки на читерство'}
+                      >
+                        {isDefended ? (
+                          <>
+                            <ShieldOff className="w-4 h-4 mr-1" />
+                            Снять
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4 mr-1" />
+                            Сдан
+                          </>
+                        )}
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

@@ -685,7 +685,7 @@ export async function initializeDatabase(): Promise<void> {
   const users = await getUsers();
   console.log(`[DB Init] Storage: ${storageMode}, Users found: ${users.length}`);
 
-  // Migrate old users: ensure shopPoints is set
+  // Migrate old users: ensure shopPoints and defendedProblems are set
   let needsSave = false;
   for (const user of users) {
     if (user.role === 'student') {
@@ -699,6 +699,11 @@ export async function initializeDatabase(): Promise<void> {
         }
         student.shopPoints = Math.max(0, (student.points || 0) - spentPoints);
         console.log(`[DB Init] Migrated shopPoints for ${student.name}: ${student.shopPoints}`);
+        needsSave = true;
+      }
+      // Initialize defendedProblems if not set
+      if (student.defendedProblems === undefined) {
+        student.defendedProblems = [];
         needsSave = true;
       }
     }
@@ -812,6 +817,7 @@ export async function initializeDatabase(): Promise<void> {
       purchasedItems: [],
       equippedAvatar: null,
       equippedFrame: null,
+      defendedProblems: [],
     }));
 
     await setData('users', [teacher, ...students]);

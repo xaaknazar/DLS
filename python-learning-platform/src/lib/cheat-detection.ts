@@ -428,11 +428,14 @@ export function compareSubmissions(code1: string, code2: string): {
  * Find all similar submissions for a problem
  * Uses dynamic thresholds based on problem uniqueness
  * Skips problems with skipCheatDetection enabled
+ * Skips submissions that are defended by students
+ * @param defendedStudentProblems - Map of studentId -> Set of defended problemIds
  */
 export function findSimilarSubmissions(
   submissions: Submission[],
   problems: Problem[],
-  defaultThreshold: number = 70 // Default 70% similarity threshold
+  defaultThreshold: number = 70, // Default 70% similarity threshold
+  defendedStudentProblems?: Map<string, Set<string>>
 ): SimilarityMatch[] {
   const matches: SimilarityMatch[] = [];
   const passedSubmissions = submissions.filter(s => s.status === 'passed');
@@ -466,8 +469,14 @@ export function findSimilarSubmissions(
     }
 
     // Only keep one submission per student (latest)
+    // Skip submissions from students who defended this problem
     const byStudent = new Map<string, Submission>();
     for (const sub of problemSubmissions) {
+      // Skip if this student defended this problem
+      if (defendedStudentProblems?.get(sub.studentId)?.has(problemId)) {
+        continue;
+      }
+
       const existing = byStudent.get(sub.studentId);
       if (!existing || new Date(sub.submittedAt) > new Date(existing.submittedAt)) {
         byStudent.set(sub.studentId, sub);
@@ -1027,21 +1036,23 @@ export function analyzeSubmissionTime(
 /**
  * Analyze a submission for all types of cheating
  * Returns submission without flags if problem has skipCheatDetection enabled
+ * or if the problem is defended by the student (isDefended = true)
  */
 export function analyzeSubmission(
   submission: Submission,
   metadata: SubmissionMetadata | undefined,
   problem: Problem,
-  allSubmissionsForProblem: Submission[]
+  allSubmissionsForProblem: Submission[],
+  isDefended: boolean = false
 ): SubmissionWithCheatData {
-  // Skip cheat detection for excluded problems
-  if (problem.skipCheatDetection) {
+  // Skip cheat detection for excluded problems or defended submissions
+  if (problem.skipCheatDetection || isDefended) {
     return {
       ...submission,
       metadata,
       cheatFlags: [],
       cheatScore: 0,
-      reviewedByTeacher: false,
+      reviewedByTeacher: isDefended, // Mark as reviewed if defended
     };
   }
 
@@ -1370,16 +1381,18 @@ export interface DetailedSubmissionAnalysis {
 /**
  * Generate detailed analysis for a submission
  * Returns empty analysis if problem has skipCheatDetection enabled
+ * or if the problem is defended by the student
  */
 export function analyzeSubmissionDetailed(
   submission: Submission,
   metadata: SubmissionMetadata | undefined,
   problem: Problem,
   allSubmissionsForProblem: Submission[],
-  studentMap: Map<string, Student>
+  studentMap: Map<string, Student>,
+  isDefended: boolean = false
 ): DetailedSubmissionAnalysis {
-  // Skip cheat detection for excluded problems - return empty analysis
-  if (problem.skipCheatDetection) {
+  // Skip cheat detection for excluded problems or defended submissions - return empty analysis
+  if (problem.skipCheatDetection || isDefended) {
     return {
       submissionId: submission.id,
       problemId: problem.id,
@@ -1506,6 +1519,10 @@ export function getStudentSubmissionsWithAnalysis(
   const studentMap = new Map(students.map(s => [s.id, s]));
   const problemMap = new Map(problems.map(p => [p.id, p]));
 
+  // Get the student's defended problems
+  const student = students.find(s => s.id === studentId);
+  const defendedProblems = new Set(student?.defendedProblems || []);
+
   // Group submissions by problem for similarity comparison
   const submissionsByProblem = new Map<string, Submission[]>();
   for (const sub of submissions) {
@@ -1538,13 +1555,16 @@ export function getStudentSubmissionsWithAnalysis(
     const allProblemSubmissions = submissionsByProblem.get(problemId) || [];
     // Use metadata from submission itself, or from provided map as fallback
     const subMetadata = submission.metadata || metadata?.get(submission.id);
+    // Check if this problem is defended by the student
+    const isDefended = defendedProblems.has(problemId);
 
     const analysis = analyzeSubmissionDetailed(
       submission,
       subMetadata,
       problem,
       allProblemSubmissions,
-      studentMap
+      studentMap,
+      isDefended
     );
 
     results.push(analysis);
