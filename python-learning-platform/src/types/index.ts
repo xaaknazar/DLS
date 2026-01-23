@@ -84,6 +84,7 @@ export interface Problem {
   testCases: TestCase[];
   grades: number[]; // Now supports multiple grades
   expectedUniqueness?: SolutionUniqueness; // For cheat detection - if not set, auto-detected from solution length
+  skipCheatDetection?: boolean; // If true, this problem will be excluded from cheat detection
 }
 
 // Submission types

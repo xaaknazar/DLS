@@ -42,6 +42,7 @@ export default function EditProblemPage() {
     testCases: [
       { id: 'tc1', input: '', expectedOutput: '', isHidden: false },
     ] as TestCase[],
+    skipCheatDetection: false,
   });
 
   // Load problem from API
@@ -115,6 +116,7 @@ export default function EditProblemPage() {
         solution: existingProblem.solution,
         hints: existingProblem.hints.length > 0 ? existingProblem.hints : [''],
         testCases: existingProblem.testCases,
+        skipCheatDetection: existingProblem.skipCheatDetection || false,
       });
     }
   }, [isNew, existingProblem]);
@@ -278,10 +280,11 @@ export default function EditProblemPage() {
           id: newId,
           order: maxOrder + 1,
           hints: filteredHints,
+          skipCheatDetection: formData.skipCheatDetection,
         });
         toast.success('Задача создана');
       } else {
-        await updateProblem(problemId, { ...formData, hints: filteredHints });
+        await updateProblem(problemId, { ...formData, hints: filteredHints, skipCheatDetection: formData.skipCheatDetection });
         toast.success('Задача обновлена');
       }
 
@@ -405,6 +408,31 @@ export default function EditProblemPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Skip cheat detection toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700">
+              <div>
+                <label className="block text-sm font-medium text-gray-300">
+                  Исключить из проверки на списывание
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Включите для задач, где все решения будут одинаковыми (например, &quot;Hello World&quot;)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, skipCheatDetection: !formData.skipCheatDetection })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  formData.skipCheatDetection ? 'bg-orange-500' : 'bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData.skipCheatDetection ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             <div className="grid grid-cols-3 gap-6">

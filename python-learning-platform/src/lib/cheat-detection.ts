@@ -427,6 +427,7 @@ export function compareSubmissions(code1: string, code2: string): {
 /**
  * Find all similar submissions for a problem
  * Uses dynamic thresholds based on problem uniqueness
+ * Skips problems with skipCheatDetection enabled
  */
 export function findSimilarSubmissions(
   submissions: Submission[],
@@ -449,6 +450,12 @@ export function findSimilarSubmissions(
   for (const [problemId, problemSubmissions] of byProblem) {
     // Get problem-specific threshold
     const problem = problemMap.get(problemId);
+
+    // Skip problems that are excluded from cheat detection
+    if (problem?.skipCheatDetection) {
+      continue;
+    }
+
     let threshold = defaultThreshold;
 
     if (problem) {
@@ -1019,6 +1026,7 @@ export function analyzeSubmissionTime(
 
 /**
  * Analyze a submission for all types of cheating
+ * Returns submission without flags if problem has skipCheatDetection enabled
  */
 export function analyzeSubmission(
   submission: Submission,
@@ -1026,6 +1034,17 @@ export function analyzeSubmission(
   problem: Problem,
   allSubmissionsForProblem: Submission[]
 ): SubmissionWithCheatData {
+  // Skip cheat detection for excluded problems
+  if (problem.skipCheatDetection) {
+    return {
+      ...submission,
+      metadata,
+      cheatFlags: [],
+      cheatScore: 0,
+      reviewedByTeacher: false,
+    };
+  }
+
   const flags: CheatFlag[] = [];
   let totalScore = 0;
 
@@ -1350,6 +1369,7 @@ export interface DetailedSubmissionAnalysis {
 
 /**
  * Generate detailed analysis for a submission
+ * Returns empty analysis if problem has skipCheatDetection enabled
  */
 export function analyzeSubmissionDetailed(
   submission: Submission,
@@ -1358,6 +1378,49 @@ export function analyzeSubmissionDetailed(
   allSubmissionsForProblem: Submission[],
   studentMap: Map<string, Student>
 ): DetailedSubmissionAnalysis {
+  // Skip cheat detection for excluded problems - return empty analysis
+  if (problem.skipCheatDetection) {
+    return {
+      submissionId: submission.id,
+      problemId: problem.id,
+      problemTitle: problem.title,
+      problemTitleRu: problem.titleRu,
+      difficulty: problem.difficulty,
+      code: submission.code,
+      submittedAt: submission.submittedAt,
+      status: submission.status,
+      overallCheatScore: 0,
+      behaviorScore: 0,
+      aiScore: 0,
+      similarityScore: 0,
+      behaviorAnalysis: {
+        overallScore: 0,
+        timing: { suspicious: false, severity: 'low', timeSpent: null, expectedMin: 0, expectedMax: 0, description: 'Проверка отключена', descriptionRu: 'Проверка отключена для этой задачи' },
+        keystrokes: { suspicious: false, severity: 'low', count: null, expectedMin: 0, ratio: null, description: 'Проверка отключена', descriptionRu: 'Проверка отключена для этой задачи' },
+        pasteEvents: { suspicious: false, severity: 'low', count: null, description: 'Проверка отключена', descriptionRu: 'Проверка отключена для этой задачи' },
+        tabSwitches: { suspicious: false, severity: 'low', count: null, description: 'Проверка отключена', descriptionRu: 'Проверка отключена для этой задачи' },
+      },
+      aiAnalysis: {
+        isLikelyAI: false,
+        confidence: 0,
+        patterns: [],
+        categories: {
+          comprehensions: { detected: false, patterns: [], score: 0 },
+          typeHints: { detected: false, patterns: [], score: 0 },
+          decorators: { detected: false, patterns: [], score: 0 },
+          formatting: { detected: false, patterns: [], score: 0 },
+          englishComments: { detected: false, patterns: [], score: 0 },
+          advancedConstructs: { detected: false, patterns: [], score: 0 },
+        },
+      },
+      similarityAnalysis: {
+        hasSimilarSubmissions: false,
+        highestSimilarity: 0,
+        similarStudents: [],
+      },
+    };
+  }
+
   // 1. Behavior analysis
   const behaviorAnalysis = analyzeBehavior(metadata, submission.code, problem.difficulty);
 
