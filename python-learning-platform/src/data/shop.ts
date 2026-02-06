@@ -27,7 +27,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-gray-900 via-gray-800 to-yellow-600',
-    image: '/avatars/batman.svg',
+    image: '/Темный рыцарь.svg',
     borderColor: 'ring-2 ring-yellow-500',
   },
   {
@@ -40,7 +40,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-blue-600 via-red-500 to-yellow-400',
-    image: '/avatars/superman.svg',
+    image: '/Человек из стали.svg',
     borderColor: 'ring-2 ring-red-500',
   },
   {
@@ -53,7 +53,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-red-600 via-blue-600 to-red-600',
-    image: '/avatars/spiderman.svg',
+    image: '/Паутинный герой.svg',
     borderColor: 'ring-2 ring-red-500',
   },
   {
@@ -66,7 +66,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-red-700 via-yellow-500 to-red-600',
-    image: '/avatars/ironman.svg',
+    image: '/Железный Кодер.svg',
     borderColor: 'ring-2 ring-yellow-400',
   },
   {
@@ -79,7 +79,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-red-600 via-yellow-400 to-red-600',
-    emoji: '⚡',
+    image: '/Скоростной кодер.svg',
     borderColor: 'ring-2 ring-yellow-500',
   },
 
@@ -94,7 +94,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-sky-400 via-amber-600 to-blue-800',
-    image: '/avatars/steve.svg',
+    image: '/Steve logo.svg',
   },
   {
     id: 'avatar-creeper',
@@ -106,7 +106,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-green-500 to-green-700',
-    image: '/avatars/creeper.svg',
+    image: '/Creeper logo.svg',
     borderColor: 'ring-2 ring-green-500',
   },
   {
@@ -119,7 +119,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-purple-900 via-black to-purple-800',
-    emoji: '👁️',
+    image: '/Эндермен.svg',
     borderColor: 'ring-2 ring-purple-500',
   },
   {
@@ -132,7 +132,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-cyan-300 via-cyan-500 to-blue-600',
-    emoji: '💎',
+    image: '/Алмазная броня.svg',
     borderColor: 'ring-2 ring-cyan-400',
   },
   {
@@ -145,7 +145,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'legendary',
     gradient: 'from-purple-600 via-black to-purple-900',
-    image: '/avatars/ender-dragon.svg',
+    image: '/Дракон края.svg',
     borderColor: 'ring-2 ring-purple-500 animate-pulse',
   },
 
@@ -160,7 +160,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-green-400 via-green-600 to-black',
-    emoji: '👨‍💻',
+    image: '/Элитный хакер.svg',
     borderColor: 'ring-2 ring-green-500',
   },
   {
@@ -173,7 +173,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-blue-500 via-yellow-400 to-blue-600',
-    image: '/avatars/python.svg',
+    image: '/Python logo.svg',
   },
   {
     id: 'avatar-ai',
@@ -185,7 +185,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-cyan-400 via-purple-500 to-pink-500',
-    emoji: '🧠',
+    image: '/Разработчик ИИ.svg',
     borderColor: 'ring-2 ring-purple-500',
   },
   {
@@ -198,7 +198,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-green-500 to-lime-400',
-    emoji: '🔢',
+    image: '/Мастер бинарного кода.svg',
   },
   {
     id: 'avatar-bug-hunter',
@@ -210,7 +210,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-red-500 via-orange-500 to-yellow-400',
-    emoji: '🐛',
+    image: '/Охотник за багами.svg',
   },
   {
     id: 'avatar-matrix',
@@ -222,7 +222,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'legendary',
     gradient: 'from-green-500 to-emerald-700',
-    image: '/avatars/matrix.svg',
+    image: '/Архитектор матрицы.svg',
     borderColor: 'ring-2 ring-green-400 animate-pulse',
   },
   {
@@ -235,7 +235,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-gray-800 via-gray-600 to-gray-900',
-    emoji: '🎭',
+    image: '/Аноним.svg',
     borderColor: 'ring-2 ring-gray-500',
   },
 
@@ -250,7 +250,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-yellow-300 via-yellow-400 to-yellow-500',
-    emoji: '⚡',
+    image: '/Электрическая мышь.svg',
     borderColor: 'ring-2 ring-yellow-400',
   },
   {
@@ -263,7 +263,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-orange-400 via-orange-500 to-black',
-    emoji: '🍥',
+    image: '/Путь ниндзя.svg',
     borderColor: 'ring-2 ring-orange-500',
   },
   {
@@ -276,7 +276,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-yellow-300 via-yellow-400 to-blue-400',
-    emoji: '💪',
+    image: '/Супер сайан.svg',
     borderColor: 'ring-2 ring-yellow-400',
   },
   {
@@ -289,7 +289,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-red-500 to-red-700',
-    emoji: '🚀',
+    image: '/Imposter.svg',
   },
   {
     id: 'avatar-brawl',
@@ -315,7 +315,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-indigo-600 via-purple-600 to-pink-600',
-    emoji: '👨‍🚀',
+    image: '/Космический кодер.svg',
     borderColor: 'ring-2 ring-purple-500',
   },
   {
@@ -328,7 +328,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-green-400 to-lime-500',
-    emoji: '👽',
+    image: '/Инопланетный  Кодер.svg',
     borderColor: 'ring-2 ring-green-500',
   },
   {
@@ -341,7 +341,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-purple-500 via-pink-500 to-indigo-600',
-    emoji: '🌌',
+    image: '/Исследователь галактики.svg',
   },
 
   // ==================== КЛАССНЫЕ АВАТАРЫ ====================
@@ -355,7 +355,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'common',
     gradient: 'from-orange-500 to-red-600',
-    emoji: '🔥',
+    image: '/Огонь logo.svg',
   },
   {
     id: 'avatar-ice',
@@ -367,7 +367,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'common',
     gradient: 'from-cyan-400 to-blue-600',
-    emoji: '❄️',
+    image: '/snowflake.svg',
   },
   {
     id: 'avatar-ninja',
@@ -379,7 +379,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-gray-700 to-gray-900',
-    emoji: '🥷',
+    image: '/Теневой ниндзя.svg',
   },
   {
     id: 'avatar-wizard',
@@ -391,7 +391,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'rare',
     gradient: 'from-violet-500 to-purple-700',
-    emoji: '🧙',
+    image: '/Волшебник кода.svg',
   },
   {
     id: 'avatar-dragon',
@@ -403,7 +403,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-red-600 via-orange-500 to-yellow-400',
-    emoji: '🐲',
+    image: '/Повелитель драконов.svg',
     borderColor: 'ring-2 ring-orange-500',
   },
   {
@@ -416,7 +416,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'epic',
     gradient: 'from-red-700 to-rose-900',
-    emoji: '⚔️',
+    image: '/Самурай кода.svg',
     borderColor: 'ring-2 ring-red-500',
   },
   {
@@ -429,7 +429,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'legendary',
     gradient: 'from-yellow-400 via-amber-500 to-orange-600',
-    emoji: '👑',
+    image: '/Королевский кодер.svg',
     borderColor: 'ring-2 ring-yellow-400 animate-pulse',
   },
   {
@@ -442,7 +442,7 @@ export const shopItems: ShopItem[] = [
     category: 'avatar',
     rarity: 'legendary',
     gradient: 'from-violet-600 via-fuchsia-500 to-pink-500',
-    emoji: '♾️',
+    image: '/Мастер Бесконечности.svg',
     borderColor: 'ring-2 ring-fuchsia-500 animate-pulse',
   },
 
@@ -503,7 +503,7 @@ export const shopItems: ShopItem[] = [
     category: 'reward',
     rarity: 'epic',
     gradient: 'from-purple-500 via-pink-500 to-red-500',
-    emoji: '🎮',
+    image: '/Игровое время.svg',
     borderColor: 'ring-2 ring-purple-500',
   },
   {
@@ -516,7 +516,7 @@ export const shopItems: ShopItem[] = [
     category: 'reward',
     rarity: 'epic',
     gradient: 'from-blue-500 via-cyan-500 to-teal-500',
-    emoji: '📱',
+    image: '/Время с телефоном.svg',
     borderColor: 'ring-2 ring-cyan-500',
   },
   {
@@ -529,7 +529,7 @@ export const shopItems: ShopItem[] = [
     category: 'reward',
     rarity: 'legendary',
     gradient: 'from-green-400 via-emerald-500 to-green-600',
-    emoji: '🏆',
+    image: '/Автомат за четверть.svg',
     borderColor: 'ring-2 ring-green-400 animate-pulse',
   },
   {
@@ -542,7 +542,7 @@ export const shopItems: ShopItem[] = [
     category: 'reward',
     rarity: 'mythic',
     gradient: 'from-yellow-300 via-amber-400 to-yellow-500',
-    emoji: '⭐',
+    image: '/Золотой билет.svg',
     borderColor: 'ring-4 ring-yellow-400 animate-pulse shadow-lg shadow-yellow-500/50',
   },
 ];
