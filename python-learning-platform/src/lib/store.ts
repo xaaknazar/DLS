@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
 import { achievements } from '@/data/achievements';
 
+// Session version - increment this to force all users to re-login
+const SESSION_VERSION = 2;
+
 // API helper functions
 async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -75,42 +78,12 @@ export const useStore = create<AppState>((set, get) => ({
         body: JSON.stringify({ email, password }),
       });
 
-      // Check if we have better local data (more progress) than server returned
-      const localData = localStorage.getItem(`user_${user.id}`);
-      let finalUser = user;
-
-      if (localData && user.role === 'student') {
-        const local = JSON.parse(localData) as Student;
-        const serverStudent = user as Student;
-
-        // If local has more progress, use local and sync to server
-        if (local.points > serverStudent.points ||
-            local.completedProblems.length > serverStudent.completedProblems.length) {
-          finalUser = { ...serverStudent, ...local, id: serverStudent.id, email: serverStudent.email };
-
-          // Sync local progress to server
-          try {
-            await apiCall(`/api/students/${user.id}`, {
-              method: 'PATCH',
-              body: JSON.stringify({
-                points: local.points,
-                completedProblems: local.completedProblems,
-                achievements: local.achievements,
-                purchasedItems: local.purchasedItems,
-                equippedAvatar: local.equippedAvatar,
-                equippedFrame: local.equippedFrame,
-              }),
-            });
-          } catch (e) {
-            console.log('Failed to sync local progress to server');
-          }
-        }
-      }
-
-      set({ user: finalUser, isAuthenticated: true, isLoading: false });
+      // Always trust server data
+      set({ user, isAuthenticated: true, isLoading: false });
       // Store in localStorage for persistence
-      localStorage.setItem(`user_${finalUser.id}`, JSON.stringify(finalUser));
-      sessionStorage.setItem('user', JSON.stringify(finalUser));
+      localStorage.setItem(`user_${user.id}`, JSON.stringify(user));
+      sessionStorage.setItem('user', JSON.stringify(user));
+      sessionStorage.setItem('session_version', String(SESSION_VERSION));
       return true;
     } catch {
       set({ isLoading: false });
@@ -125,6 +98,21 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   refreshUser: async () => {
+    // Check session version - force re-login if outdated
+    const storedVersion = sessionStorage.getItem('session_version');
+    if (storedVersion !== String(SESSION_VERSION)) {
+      // Clear old session data
+      sessionStorage.clear();
+      // Clear all user localStorage entries
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('user_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      set({ user: null, isAuthenticated: false });
+      return;
+    }
+
     const stored = sessionStorage.getItem('user');
     if (stored) {
       try {
@@ -135,66 +123,18 @@ export const useStore = create<AppState>((set, get) => ({
           return;
         }
 
-        // For students, check local storage for saved progress
-        const localData = localStorage.getItem(`user_${user.id}`);
+        // For students, always get fresh data from server
         let freshUser: Student;
 
         try {
           freshUser = await apiCall<Student>(`/api/students/${user.id}`);
         } catch {
-          // Server error - use local data
-          if (localData) {
-            const local = JSON.parse(localData);
-            set({ user: local, isAuthenticated: true });
-          }
+          // Server error - use stored session data
+          set({ user, isAuthenticated: true });
           return;
         }
 
-        // Compare with local data
-        if (localData) {
-          const local = JSON.parse(localData) as Student;
-
-          // If local has more progress, sync to server and use local
-          if (local.points > freshUser.points ||
-              local.completedProblems.length > freshUser.completedProblems.length ||
-              (local.achievements?.length || 0) > (freshUser.achievements?.length || 0)) {
-
-            // Merge: take the better values
-            const mergedUser: Student = {
-              ...freshUser,
-              points: Math.max(local.points, freshUser.points),
-              completedProblems: [...new Set([...local.completedProblems, ...freshUser.completedProblems])],
-              achievements: [...new Set([...(local.achievements || []), ...(freshUser.achievements || [])])],
-              purchasedItems: [...new Set([...(local.purchasedItems || []), ...(freshUser.purchasedItems || [])])],
-              equippedAvatar: local.equippedAvatar || freshUser.equippedAvatar,
-              equippedFrame: local.equippedFrame || freshUser.equippedFrame,
-            };
-
-            // Sync merged data to server
-            try {
-              await apiCall(`/api/students/${user.id}`, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                  points: mergedUser.points,
-                  completedProblems: mergedUser.completedProblems,
-                  achievements: mergedUser.achievements,
-                  purchasedItems: mergedUser.purchasedItems,
-                  equippedAvatar: mergedUser.equippedAvatar,
-                  equippedFrame: mergedUser.equippedFrame,
-                }),
-              });
-            } catch (e) {
-              console.log('Failed to sync progress to server');
-            }
-
-            set({ user: mergedUser, isAuthenticated: true });
-            localStorage.setItem(`user_${user.id}`, JSON.stringify(mergedUser));
-            sessionStorage.setItem('user', JSON.stringify(mergedUser));
-            return;
-          }
-        }
-
-        // Server data is current or better
+        // Always trust server data - update local storage with server data
         set({ user: freshUser, isAuthenticated: true });
         localStorage.setItem(`user_${user.id}`, JSON.stringify(freshUser));
         sessionStorage.setItem('user', JSON.stringify(freshUser));
@@ -381,10 +321,16 @@ export const useStore = create<AppState>((set, get) => ({
           }
         }
 
+        // Calculate new shop points (add same amount as rating points)
+        const totalNewPoints = newPoints + bonusPoints;
+        const pointsEarned = totalNewPoints - user.points;
+        const newShopPoints = (user.shopPoints || 0) + (wasNewProblem ? pointsEarned : 0);
+
         const updatedUser = {
           ...user,
           completedProblems: newCompletedProblems,
-          points: newPoints + bonusPoints,
+          points: totalNewPoints,
+          shopPoints: newShopPoints,
           achievements: currentAchievements,
         };
         set({ user: updatedUser as Student });
@@ -396,7 +342,8 @@ export const useStore = create<AppState>((set, get) => ({
           await apiCall(`/api/students/${user.id}`, {
             method: 'PATCH',
             body: JSON.stringify({
-              points: newPoints + bonusPoints,
+              points: totalNewPoints,
+              shopPoints: newShopPoints,
               completedProblems: newCompletedProblems,
               achievements: currentAchievements,
             }),

@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       grade: parseInt(grade),
       completedProblems: [],
       points: 0,
+      shopPoints: 0,
       achievements: [],
       streakDays: 0,
       lastActiveAt: new Date(),

@@ -4,8 +4,7 @@ import { useStore } from '@/lib/store';
 import { Student } from '@/types';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getShopItemById } from '@/data/shop';
 import {
   Trophy,
@@ -15,7 +14,25 @@ import {
   Code,
   Crown,
   Loader2,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Sparkles,
 } from 'lucide-react';
+
+interface LeaderboardEntry {
+  id: string;
+  name: string;
+  grade: number;
+  points: number;
+  completedProblems: number;
+  streakDays: number;
+  currentRank: number;
+  previousRank: number | null;
+  change: number | null;
+  equippedAvatar: string | null;
+  equippedFrame: string | null;
+}
 
 export default function LeaderboardPage() {
   const { user, students, loadStudents } = useStore();
@@ -24,19 +41,50 @@ export default function LeaderboardPage() {
     currentStudent?.grade || 7
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      const gradeParam = selectedGrade === 'all' ? 'all' : selectedGrade;
+      const response = await fetch(`/api/leaderboard/update-ranks?grade=${gradeParam}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLeaderboard(data.leaderboard);
+      }
+    } catch (e) {
+      console.error('Failed to fetch leaderboard:', e);
+    }
+  }, [selectedGrade]);
 
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
         await loadStudents();
+        await fetchLeaderboard();
       } catch (e) {
-        console.error('Failed to load students:', e);
+        console.error('Failed to load data:', e);
       }
       setIsLoading(false);
     };
-    fetchStudents();
-  }, [loadStudents]);
+    fetchData();
+  }, [loadStudents, fetchLeaderboard]);
+
+  // Обновляем снимок рейтинга при первом посещении
+  useEffect(() => {
+    const updateRankSnapshot = async () => {
+      try {
+        await fetch('/api/leaderboard/update-ranks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ grade: selectedGrade === 'all' ? undefined : selectedGrade }),
+        });
+      } catch (e) {
+        console.error('Failed to update rank snapshot:', e);
+      }
+    };
+    updateRankSnapshot();
+  }, []);
 
   if (!currentStudent) return null;
 
@@ -51,29 +99,49 @@ export default function LeaderboardPage() {
     );
   }
 
-  const filteredStudents =
-    selectedGrade === 'all'
-      ? students
-      : students.filter((s) => s.grade === selectedGrade);
+  // Fallback to local data if API failed
+  const displayData = leaderboard.length > 0
+    ? leaderboard
+    : (() => {
+        const filteredStudents = selectedGrade === 'all'
+          ? students
+          : students.filter((s) => s.grade === selectedGrade);
+        const sortedStudents = [...filteredStudents].sort((a, b) => b.points - a.points);
+        return sortedStudents.map((s, i) => ({
+          id: s.id,
+          name: s.name,
+          grade: s.grade,
+          points: s.points,
+          completedProblems: s.completedProblems.length,
+          streakDays: s.streakDays,
+          currentRank: i + 1,
+          previousRank: s.previousRank ?? null,
+          change: s.previousRank ? s.previousRank - (i + 1) : null,
+          equippedAvatar: s.equippedAvatar,
+          equippedFrame: s.equippedFrame,
+        }));
+      })();
 
-  const sortedStudents = [...filteredStudents].sort(
-    (a, b) => b.points - a.points
-  );
-
-  const currentUserRank =
-    sortedStudents.findIndex((s) => s.id === currentStudent.id) + 1;
+  const currentUserEntry = displayData.find((e) => e.id === currentStudent.id);
+  const currentUserRank = currentUserEntry?.currentRank || 0;
+  const currentUserChange = currentUserEntry?.change ?? null;
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
-        return <Crown className="w-6 h-6 text-yellow-400" />;
+        return (
+          <div className="relative">
+            <Crown className="w-7 h-7 text-yellow-400 drop-shadow-lg" />
+            <Sparkles className="w-3 h-3 text-yellow-300 absolute -top-1 -right-1 animate-pulse" />
+          </div>
+        );
       case 2:
-        return <Medal className="w-6 h-6 text-gray-300" />;
+        return <Medal className="w-6 h-6 text-gray-300 drop-shadow-md" />;
       case 3:
-        return <Medal className="w-6 h-6 text-amber-600" />;
+        return <Medal className="w-6 h-6 text-amber-600 drop-shadow-md" />;
       default:
         return (
-          <span className="text-gray-400 font-mono font-bold">{rank}</span>
+          <span className="text-gray-400 font-mono font-bold text-lg">{rank}</span>
         );
     }
   };
@@ -81,53 +149,170 @@ export default function LeaderboardPage() {
   const getRankBg = (rank: number) => {
     switch (rank) {
       case 1:
-        return 'bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border-yellow-500/30';
+        return 'bg-gradient-to-r from-yellow-500/20 via-amber-500/15 to-yellow-500/20 border-yellow-500/40 shadow-lg shadow-yellow-500/10';
       case 2:
-        return 'bg-gradient-to-r from-gray-400/10 to-gray-500/10 border-gray-400/30';
+        return 'bg-gradient-to-r from-gray-400/15 via-slate-400/10 to-gray-400/15 border-gray-400/30';
       case 3:
-        return 'bg-gradient-to-r from-amber-600/10 to-orange-600/10 border-amber-600/30';
+        return 'bg-gradient-to-r from-amber-600/15 via-orange-500/10 to-amber-600/15 border-amber-600/30';
       default:
-        return '';
+        return 'hover:bg-gray-800/50';
     }
   };
 
+  const getRankChangeDisplay = (change: number | null) => {
+    if (change === null) {
+      return (
+        <div className="flex items-center gap-1 text-gray-500 text-sm min-w-[50px] justify-end">
+          <Minus className="w-4 h-4" />
+          <span>-</span>
+        </div>
+      );
+    }
+
+    if (change > 0) {
+      return (
+        <div className="flex items-center gap-1 text-green-400 text-sm font-medium min-w-[50px] justify-end animate-pulse">
+          <TrendingUp className="w-4 h-4" />
+          <span>+{change}</span>
+        </div>
+      );
+    }
+
+    if (change < 0) {
+      return (
+        <div className="flex items-center gap-1 text-red-400 text-sm font-medium min-w-[50px] justify-end">
+          <TrendingDown className="w-4 h-4" />
+          <span>{change}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-1 text-gray-500 text-sm min-w-[50px] justify-end">
+        <Minus className="w-4 h-4" />
+        <span>0</span>
+      </div>
+    );
+  };
+
+  const getAvatar = (entry: LeaderboardEntry, size: 'sm' | 'md' | 'lg' = 'sm', isCurrentUser = false) => {
+    const avatarItem = entry.equippedAvatar ? getShopItemById(entry.equippedAvatar) : null;
+    const frameItem = entry.equippedFrame ? getShopItemById(entry.equippedFrame) : null;
+
+    const sizeClasses = {
+      sm: 'w-10 h-10',
+      md: 'w-12 h-12',
+      lg: 'w-16 h-16',
+    };
+
+    const innerSizes = {
+      sm: 'w-8 h-8',
+      md: 'w-10 h-10',
+      lg: 'w-14 h-14',
+    };
+
+    const textSizes = {
+      sm: 'text-lg',
+      md: 'text-xl',
+      lg: 'text-2xl',
+    };
+
+    if (avatarItem) {
+      return (
+        <div
+          className={`${sizeClasses[size]} rounded-full flex items-center justify-center overflow-hidden
+            bg-gradient-to-br ${avatarItem.gradient || 'from-gray-600 to-gray-700'}
+            ${frameItem?.borderColor || ''}
+          `}
+        >
+          {avatarItem.image ? (
+            <img
+              src={avatarItem.image}
+              alt={avatarItem.nameRu}
+              className={`${innerSizes[size]} object-contain`}
+            />
+          ) : (
+            <span className={textSizes[size]}>{avatarItem.emoji}</span>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={`${sizeClasses[size]} rounded-full flex items-center justify-center font-bold ${
+          isCurrentUser
+            ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
+            : 'bg-gray-700 text-gray-300'
+        }`}
+      >
+        {entry.name.charAt(0)}
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-900">
       <Header title="Рейтинг" subtitle="Соревнуйся с одноклассниками" />
 
-      <div className="p-8">
-        {/* Current User Rank */}
-        <Card className="p-6 mb-8 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30">
-          <div className="flex items-center justify-between">
+      <div className="p-4 md:p-8 max-w-6xl mx-auto">
+        {/* Current User Rank Card */}
+        <Card className="p-6 mb-8 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10 border-blue-500/30 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 animate-pulse" />
+          <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                {currentStudent.name.charAt(0)}
-              </div>
-              <div>
+              {currentUserEntry && getAvatar(currentUserEntry, 'lg', true)}
+              <div className="text-center sm:text-left">
                 <p className="text-gray-400 text-sm">Твоя позиция</p>
-                <p className="text-2xl font-bold text-white">
-                  #{currentUserRank} из {sortedStudents.length}
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="text-3xl font-bold text-white">
+                    #{currentUserRank}
+                    <span className="text-gray-500 text-lg font-normal ml-1">
+                      из {displayData.length}
+                    </span>
+                  </p>
+                  {currentUserChange !== null && currentUserChange !== 0 && (
+                    <div
+                      className={`px-2 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${
+                        currentUserChange > 0
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-red-500/20 text-red-400'
+                      }`}
+                    >
+                      {currentUserChange > 0 ? (
+                        <>
+                          <TrendingUp className="w-4 h-4" />
+                          <span>+{currentUserChange}</span>
+                        </>
+                      ) : (
+                        <>
+                          <TrendingDown className="w-4 h-4" />
+                          <span>{currentUserChange}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6">
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Баллы</p>
-                <div className="flex items-center gap-1 text-yellow-400 text-xl font-bold">
+                <p className="text-gray-400 text-xs sm:text-sm">Баллы</p>
+                <div className="flex items-center gap-1 text-yellow-400 text-lg sm:text-xl font-bold">
                   <Star className="w-5 h-5" />
                   {currentStudent.points}
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Решено</p>
-                <div className="flex items-center gap-1 text-green-400 text-xl font-bold">
+                <p className="text-gray-400 text-xs sm:text-sm">Решено</p>
+                <div className="flex items-center gap-1 text-green-400 text-lg sm:text-xl font-bold">
                   <Code className="w-5 h-5" />
                   {currentStudent.completedProblems.length}
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Серия</p>
-                <div className="flex items-center gap-1 text-orange-400 text-xl font-bold">
+                <p className="text-gray-400 text-xs sm:text-sm">Серия</p>
+                <div className="flex items-center gap-1 text-orange-400 text-lg sm:text-xl font-bold">
                   <Flame className="w-5 h-5" />
                   {currentStudent.streakDays}
                 </div>
@@ -137,97 +322,89 @@ export default function LeaderboardPage() {
         </Card>
 
         {/* Grade Filter */}
-        <div className="flex items-center gap-2 mb-6">
-          <span className="text-gray-400">Класс:</span>
-          {[7, 8, 9, 10, 'all'].map((grade) => (
-            <button
-              key={grade}
-              onClick={() => setSelectedGrade(grade as number | 'all')}
-              className={`px-4 py-2 rounded-xl font-medium transition-all ${
-                selectedGrade === grade
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {grade === 'all' ? 'Все' : `${grade} класс`}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
+          <span className="text-gray-400 whitespace-nowrap">Класс:</span>
+          <div className="flex gap-2">
+            {[7, 8, 9, 10, 'all'].map((grade) => (
+              <button
+                key={grade}
+                onClick={() => setSelectedGrade(grade as number | 'all')}
+                className={`px-4 py-2 rounded-xl font-medium transition-all whitespace-nowrap ${
+                  selectedGrade === grade
+                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                }`}
+              >
+                {grade === 'all' ? 'Все' : `${grade} класс`}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Leaderboard */}
-        <div className="space-y-3">
-          {sortedStudents.map((student, index) => {
-            const rank = index + 1;
-            const isCurrentUser = student.id === currentStudent.id;
+        {/* Leaderboard List */}
+        <div className="space-y-2">
+          {displayData.map((entry) => {
+            const rank = entry.currentRank;
+            const isCurrentUser = entry.id === currentStudent.id;
 
             return (
               <Card
-                key={student.id}
-                className={`p-4 ${getRankBg(rank)} ${
-                  isCurrentUser ? 'ring-2 ring-blue-500' : ''
+                key={entry.id}
+                className={`p-3 sm:p-4 transition-all duration-300 ${getRankBg(rank)} ${
+                  isCurrentUser ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-900' : ''
                 }`}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                   {/* Rank */}
-                  <div className="w-12 h-12 flex items-center justify-center">
+                  <div className="w-10 sm:w-12 h-10 sm:h-12 flex items-center justify-center flex-shrink-0">
                     {getRankIcon(rank)}
                   </div>
 
+                  {/* Rank Change */}
+                  <div className="hidden sm:block">
+                    {getRankChangeDisplay(entry.change)}
+                  </div>
+
                   {/* Avatar & Name */}
-                  <div className="flex items-center gap-3 flex-1">
-                    {(() => {
-                      const avatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
-                      const frameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
-
-                      if (avatarItem) {
-                        return (
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg
-                            bg-gradient-to-br ${avatarItem.gradient}
-                            ${frameItem?.borderColor || ''}
-                          `}>
-                            {avatarItem.emoji}
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                            isCurrentUser
-                              ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
-                              : 'bg-gray-700 text-gray-300'
-                          }`}
-                        >
-                          {student.name.charAt(0)}
-                        </div>
-                      );
-                    })()}
-                    <div>
-                      <p className="font-medium text-white">
-                        {student.name}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {getAvatar(entry, 'sm', isCurrentUser)}
+                    <div className="min-w-0">
+                      <p className="font-medium text-white truncate">
+                        {entry.name}
                         {isCurrentUser && (
                           <span className="ml-2 text-blue-400 text-sm">(Вы)</span>
                         )}
                       </p>
-                      <p className="text-gray-400 text-sm">{student.grade} класс</p>
+                      <div className="flex items-center gap-2 text-gray-400 text-sm">
+                        <span>{entry.grade} класс</span>
+                        <span className="sm:hidden">
+                          {entry.change !== null && entry.change !== 0 && (
+                            <span
+                              className={
+                                entry.change > 0 ? 'text-green-400' : 'text-red-400'
+                              }
+                            >
+                              {entry.change > 0 ? `+${entry.change}` : entry.change}
+                            </span>
+                          )}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Stats */}
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-1 text-green-400">
+                  <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
+                    <div className="hidden sm:flex items-center gap-1 text-green-400">
                       <Code className="w-4 h-4" />
-                      <span className="font-medium">
-                        {student.completedProblems.length}
-                      </span>
+                      <span className="font-medium">{entry.completedProblems}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-orange-400">
+                    <div className="hidden sm:flex items-center gap-1 text-orange-400">
                       <Flame className="w-4 h-4" />
-                      <span className="font-medium">{student.streakDays}</span>
+                      <span className="font-medium">{entry.streakDays}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-yellow-400 min-w-[80px] justify-end">
+                    <div className="flex items-center gap-1 text-yellow-400 min-w-[60px] sm:min-w-[80px] justify-end">
                       <Star className="w-4 h-4" />
-                      <span className="font-bold">{student.points}</span>
+                      <span className="font-bold">{entry.points}</span>
                     </div>
                   </div>
                 </div>
@@ -235,6 +412,14 @@ export default function LeaderboardPage() {
             );
           })}
         </div>
+
+        {displayData.length === 0 && (
+          <div className="text-center py-12">
+            <Trophy className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-400 text-lg">Пока нет участников</p>
+            <p className="text-gray-500 text-sm">Решай задачи и попади в рейтинг!</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -36,15 +36,21 @@ export async function POST(
         return NextResponse.json({ error: 'Already owned' }, { status: 400 });
       }
 
-      // Check if can afford
-      if (student.points < item.price) {
+      // Check if can afford - use shopPoints for purchases (не рейтинговые баллы!)
+      const currentShopPoints = student.shopPoints ?? student.points ?? 0;
+      if (currentShopPoints < item.price) {
         return NextResponse.json({ error: 'Not enough points' }, { status: 400 });
       }
 
-      // Purchase the item
+      // Purchase the item - deduct ONLY shopPoints (not rating points!)
+      const newShopPoints = currentShopPoints - item.price;
+      const newPurchasedItems = [...purchasedItems, itemId];
+
+      console.log(`[Shop] Student ${student.name} buying ${item.nameRu} for ${item.price} points. Shop Balance: ${currentShopPoints} -> ${newShopPoints}. Rating points unchanged: ${student.points}`);
+
       const updatedStudent = await updateUser(id, {
-        points: student.points - item.price,
-        purchasedItems: [...purchasedItems, itemId],
+        shopPoints: newShopPoints,
+        purchasedItems: newPurchasedItems,
       });
 
       if (!updatedStudent) {
@@ -86,6 +92,56 @@ export async function POST(
       if (item.category === 'avatar') {
         updates.equippedAvatar = null;
       } else if (item.category === 'frame') {
+        updates.equippedFrame = null;
+      }
+
+      const updatedStudent = await updateUser(id, updates);
+
+      if (!updatedStudent) {
+        return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+      }
+
+      const { password, ...safeUser } = updatedStudent;
+      return NextResponse.json(safeUser);
+    }
+
+    // Teacher actions: give/remove items without affecting points
+    if (action === 'give') {
+      // Give item to student (teacher action, no points deducted)
+      if (purchasedItems.includes(itemId)) {
+        return NextResponse.json({ error: 'Already owned' }, { status: 400 });
+      }
+
+      const updatedStudent = await updateUser(id, {
+        purchasedItems: [...purchasedItems, itemId],
+      });
+
+      if (!updatedStudent) {
+        return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+      }
+
+      const { password, ...safeUser } = updatedStudent;
+      return NextResponse.json(safeUser);
+    }
+
+    if (action === 'remove') {
+      // Remove item from student (teacher action)
+      if (!purchasedItems.includes(itemId)) {
+        return NextResponse.json({ error: 'Item not owned' }, { status: 400 });
+      }
+
+      // Remove from purchased items
+      const newPurchasedItems = purchasedItems.filter((i: string) => i !== itemId);
+
+      // Unequip if it was equipped
+      const updates: Partial<Student> = {
+        purchasedItems: newPurchasedItems,
+      };
+
+      if (student.equippedAvatar === itemId) {
+        updates.equippedAvatar = null;
+      }
+      if (student.equippedFrame === itemId) {
         updates.equippedFrame = null;
       }
 

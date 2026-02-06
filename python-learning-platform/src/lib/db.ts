@@ -1,5 +1,9 @@
-import { Student, Teacher, Topic, Problem, Submission, Message } from '@/types';
+import { Student, Teacher, Topic, Problem, Submission, Message, Announcement } from '@/types';
 import Redis from 'ioredis';
+import { problems as defaultProblemsData } from '@/data/problems';
+import { topics as defaultTopicsData } from '@/data/topics';
+import { achievements } from '@/data/achievements';
+import { shopItems } from '@/data/shop';
 
 // Check for Redis connection
 const redisUrl = typeof process !== 'undefined' ? process.env.REDIS_URL : null;
@@ -32,12 +36,14 @@ let memoryStore: {
   problems: Problem[];
   submissions: Submission[];
   messages: Message[];
+  announcements: Announcement[];
 } = {
   users: [],
   topics: [],
   problems: [],
   submissions: [],
   messages: [],
+  announcements: [],
 };
 
 let initialized = false;
@@ -103,6 +109,9 @@ async function getData<T>(key: string, defaultValue: T): Promise<T> {
 }
 
 async function setData<T>(key: string, data: T): Promise<void> {
+  // Always update memory store as cache first
+  (memoryStore as any)[key] = data;
+
   // Try standard Redis first
   if (redisUrl) {
     await redisSet(key, data);
@@ -112,8 +121,6 @@ async function setData<T>(key: string, data: T): Promise<void> {
   if (isVercelKV) {
     await kvSet(key, data);
   }
-  // Always update memory store as cache
-  (memoryStore as any)[key] = data;
 }
 
 // ==================== USERS ====================
@@ -162,7 +169,23 @@ export async function updateStudentPoints(id: string, pointsDelta: number): Prom
   const index = users.findIndex(u => u.id === id);
   if (index === -1 || users[index].role !== 'student') return null;
   const student = users[index] as Student;
+  // При начислении баллов - добавляем в оба поля
+  // При отнимании (ручное) - отнимаем из обоих
   student.points = Math.max(0, student.points + pointsDelta);
+  student.shopPoints = Math.max(0, (student.shopPoints || 0) + pointsDelta);
+  await setData('users', users);
+  return student;
+}
+
+// Обновление ТОЛЬКО магазинных баллов (для компенсации подарков)
+export async function updateStudentShopPoints(id: string, shopPointsDelta: number): Promise<Student | null> {
+  const users = await getUsers();
+  const index = users.findIndex(u => u.id === id);
+  if (index === -1 || users[index].role !== 'student') return null;
+  const student = users[index] as Student;
+  const oldShopPoints = student.shopPoints ?? student.points ?? 0;
+  student.shopPoints = Math.max(0, oldShopPoints + shopPointsDelta);
+  console.log(`[DB] Updated shopPoints for ${student.name}: ${oldShopPoints} -> ${student.shopPoints} (delta: ${shopPointsDelta > 0 ? '+' : ''}${shopPointsDelta})`);
   await setData('users', users);
   return student;
 }
@@ -176,11 +199,91 @@ export async function markProblemCompleted(studentId: string, problemId: string,
   if (!student.completedProblems.includes(problemId)) {
     student.completedProblems.push(problemId);
     student.points += points;
+    student.shopPoints = (student.shopPoints || 0) + points;
   }
   student.lastActiveAt = new Date();
 
   await setData('users', users);
   return student;
+}
+
+// ==================== STREAK ====================
+// Обновление стрика при входе пользователя
+export async function updateStreak(studentId: string): Promise<{ student: Student; streakUpdated: boolean; newAchievements: string[] }> {
+  const users = await getUsers();
+  const index = users.findIndex(u => u.id === studentId);
+  if (index === -1 || users[index].role !== 'student') {
+    throw new Error('Student not found');
+  }
+
+  const student = users[index] as Student;
+  const now = new Date();
+  const lastActive = student.lastActiveAt ? new Date(student.lastActiveAt) : null;
+
+  let streakUpdated = false;
+  const newAchievements: string[] = [];
+
+  // Получаем начало сегодняшнего дня (в локальном времени)
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (!lastActive) {
+    // Первый вход - устанавливаем стрик в 1
+    student.streakDays = 1;
+    student.lastActiveAt = now;
+    streakUpdated = true;
+    console.log(`[Streak] ${student.name}: First login, streak set to 1`);
+  } else {
+    // Получаем начало дня последней активности
+    const lastActiveStart = new Date(lastActive.getFullYear(), lastActive.getMonth(), lastActive.getDate());
+
+    // Разница в днях
+    const diffTime = todayStart.getTime() - lastActiveStart.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    console.log(`[Streak] ${student.name}: lastActive=${lastActiveStart.toISOString()}, today=${todayStart.toISOString()}, diffDays=${diffDays}`);
+
+    if (diffDays === 0) {
+      // Тот же день - стрик не меняется, но обновляем время
+      student.lastActiveAt = now;
+      console.log(`[Streak] ${student.name}: Same day login, streak stays at ${student.streakDays}`);
+    } else if (diffDays === 1) {
+      // Следующий день - увеличиваем стрик
+      student.streakDays = (student.streakDays || 0) + 1;
+      student.lastActiveAt = now;
+      streakUpdated = true;
+      console.log(`[Streak] ${student.name}: Consecutive day! Streak increased to ${student.streakDays}`);
+    } else {
+      // Пропущен день - сбрасываем стрик на 1
+      student.streakDays = 1;
+      student.lastActiveAt = now;
+      streakUpdated = true;
+      console.log(`[Streak] ${student.name}: Missed ${diffDays - 1} day(s), streak reset to 1`);
+    }
+  }
+
+  // Проверяем достижения за стрики
+  if (streakUpdated) {
+    const streakAchievements = achievements.filter(a => a.requirement.type === 'streak');
+    let achievementPoints = 0;
+
+    for (const achievement of streakAchievements) {
+      if (!student.achievements.includes(achievement.id) && student.streakDays >= achievement.requirement.value) {
+        student.achievements.push(achievement.id);
+        achievementPoints += achievement.points;
+        newAchievements.push(achievement.id);
+        console.log(`[Streak] ${student.name}: Earned achievement "${achievement.id}" (+${achievement.points} points)`);
+      }
+    }
+
+    // Начисляем баллы за достижения
+    if (achievementPoints > 0) {
+      student.points += achievementPoints;
+      student.shopPoints = (student.shopPoints || 0) + achievementPoints;
+    }
+  }
+
+  await setData('users', users);
+  return { student, streakUpdated, newAchievements };
 }
 
 // ==================== TOPICS ====================
@@ -268,6 +371,156 @@ export async function deleteProblem(id: string): Promise<boolean> {
   return true;
 }
 
+export async function resetProblems(): Promise<void> {
+  await setData('problems', defaultProblemsData);
+}
+
+export async function resetTopics(): Promise<void> {
+  await setData('topics', defaultTopicsData);
+}
+
+export async function resetAllData(): Promise<void> {
+  await setData('topics', defaultTopicsData);
+  await setData('problems', defaultProblemsData);
+}
+
+export async function resetAllStudentProgress(): Promise<number> {
+  const users = await getUsers();
+  let resetCount = 0;
+
+  for (let i = 0; i < users.length; i++) {
+    if (users[i].role === 'student') {
+      const student = users[i] as Student;
+      student.points = 0;
+      student.shopPoints = 0;
+      student.completedProblems = [];
+      student.achievements = [];
+      resetCount++;
+    }
+  }
+
+  await setData('users', users);
+  return resetCount;
+}
+
+// Пересчёт баллов всех студентов на основе их решений и достижений
+export async function recalculateAllStudentPoints(): Promise<{ recalculatedCount: number; details: { id: string; name: string; oldPoints: number; newPoints: number; oldShopPoints: number; newShopPoints: number }[] }> {
+  const users = await getUsers();
+  const problems = await getProblems();
+  const topics = await getTopics();
+
+  console.log(`[Recalc] Starting recalculation. Total users: ${users.length}, Problems: ${problems.length}`);
+
+  const details: { id: string; name: string; oldPoints: number; newPoints: number; oldShopPoints: number; newShopPoints: number }[] = [];
+  let recalculatedCount = 0;
+
+  for (let i = 0; i < users.length; i++) {
+    if (users[i].role !== 'student') continue;
+
+    const student = users[i] as Student;
+    const oldPoints = student.points || 0;
+    const oldShopPoints = student.shopPoints ?? student.points ?? 0; // Fallback to points if shopPoints undefined
+
+    // 1. Подсчёт баллов за решённые задачи
+    let problemPoints = 0;
+    for (const problemId of student.completedProblems || []) {
+      const problem = problems.find(p => p.id === problemId);
+      if (problem) {
+        problemPoints += problem.points;
+      }
+    }
+
+    // 2. Подсчёт баллов за достижения
+    // Сначала пересчитаем какие достижения студент должен иметь
+    const earnedAchievements: string[] = [];
+    let achievementPoints = 0;
+
+    for (const achievement of achievements) {
+      let earned = false;
+
+      switch (achievement.requirement.type) {
+        case 'problems_solved':
+          earned = (student.completedProblems || []).length >= achievement.requirement.value;
+          break;
+        case 'points_earned':
+          // Для points_earned используем баллы за задачи (без бонусов за достижения)
+          earned = problemPoints >= achievement.requirement.value;
+          break;
+        case 'streak':
+          earned = (student.streakDays || 0) >= achievement.requirement.value;
+          break;
+        case 'difficulty':
+          if (achievement.requirement.difficulty) {
+            const hardProblems = problems.filter(p =>
+              p.difficulty === achievement.requirement.difficulty &&
+              (student.completedProblems || []).includes(p.id)
+            );
+            earned = hardProblems.length >= achievement.requirement.value;
+          }
+          break;
+        case 'topic_completed':
+          // Проверяем завершена ли хоть одна тема полностью
+          for (const topic of topics) {
+            const topicProblems = problems.filter(p => p.topicId === topic.id);
+            const completedInTopic = topicProblems.filter(p => (student.completedProblems || []).includes(p.id));
+            if (topicProblems.length > 0 && completedInTopic.length === topicProblems.length) {
+              earned = true;
+              break;
+            }
+          }
+          break;
+      }
+
+      if (earned) {
+        earnedAchievements.push(achievement.id);
+        achievementPoints += achievement.points;
+      }
+    }
+
+    // 3. Общие рейтинговые баллы
+    const newPoints = problemPoints + achievementPoints;
+
+    // 4. Подсчёт потраченных баллов в магазине
+    let spentPoints = 0;
+    const purchasedItems = student.purchasedItems || [];
+    for (const itemId of purchasedItems) {
+      const item = shopItems.find(i => i.id === itemId);
+      if (item) {
+        spentPoints += item.price;
+      }
+    }
+
+    // 5. Баллы магазина = рейтинговые баллы - потраченные
+    const newShopPoints = Math.max(0, newPoints - spentPoints);
+
+    // Debug log for students with significant changes
+    if (newPoints > 0 || oldPoints > 0) {
+      console.log(`[Recalc] ${student.name}: problems=${(student.completedProblems || []).length}, problemPts=${problemPoints}, achPts=${achievementPoints}, spent=${spentPoints}, items=${purchasedItems.length}, newPts=${newPoints}, newShopPts=${newShopPoints}`);
+    }
+
+    // Обновляем студента
+    student.points = newPoints;
+    student.shopPoints = newShopPoints;
+    student.achievements = earnedAchievements;
+
+    details.push({
+      id: student.id,
+      name: student.name,
+      oldPoints,
+      newPoints,
+      oldShopPoints,
+      newShopPoints,
+    });
+
+    recalculatedCount++;
+  }
+
+  console.log(`[Recalc] Saving ${recalculatedCount} students to database...`);
+  await setData('users', users);
+  console.log('[Recalc] Save complete');
+  return { recalculatedCount, details };
+}
+
 // ==================== SUBMISSIONS ====================
 export async function getSubmissions(): Promise<Submission[]> {
   return getData('submissions', []);
@@ -298,6 +551,16 @@ export async function createSubmission(submission: Submission): Promise<Submissi
   submissions.push(submission);
   await setData('submissions', submissions);
   return submission;
+}
+
+export async function deleteSubmissionsByStudentAndProblem(studentId: string, problemId: string): Promise<number> {
+  const submissions = await getSubmissions();
+  const filteredSubmissions = submissions.filter(
+    s => !(s.studentId === studentId && s.problemId === problemId)
+  );
+  const deletedCount = submissions.length - filteredSubmissions.length;
+  await setData('submissions', filteredSubmissions);
+  return deletedCount;
 }
 
 // ==================== MESSAGES ====================
@@ -375,15 +638,83 @@ export async function markMessagesAsRead(userId: string, fromUserId: string): Pr
   await setData('messages', messages);
 }
 
+// ==================== ANNOUNCEMENTS ====================
+export async function getAnnouncements(): Promise<Announcement[]> {
+  return getData('announcements', []);
+}
+
+export async function getAnnouncementById(id: string): Promise<Announcement | null> {
+  const announcements = await getAnnouncements();
+  return announcements.find(a => a.id === id) || null;
+}
+
+export async function createAnnouncement(announcement: Announcement): Promise<Announcement> {
+  const announcements = await getAnnouncements();
+  announcements.unshift(announcement); // Add to beginning (newest first)
+  await setData('announcements', announcements);
+  return announcement;
+}
+
+export async function updateAnnouncement(id: string, updates: Partial<Announcement>): Promise<Announcement | null> {
+  const announcements = await getAnnouncements();
+  const index = announcements.findIndex(a => a.id === id);
+  if (index === -1) return null;
+  announcements[index] = { ...announcements[index], ...updates, updatedAt: new Date() };
+  await setData('announcements', announcements);
+  return announcements[index];
+}
+
+export async function deleteAnnouncement(id: string): Promise<boolean> {
+  const announcements = await getAnnouncements();
+  const index = announcements.findIndex(a => a.id === id);
+  if (index === -1) return false;
+  announcements.splice(index, 1);
+  await setData('announcements', announcements);
+  return true;
+}
+
 // ==================== INITIALIZATION ====================
 export async function initializeDatabase(): Promise<void> {
+  const storageMode = redisUrl ? 'Redis' : (isVercelKV ? 'Vercel KV' : 'In-Memory');
+
   if (initialized && !hasRedis) {
     return; // Skip if already initialized (for in-memory mode)
   }
 
   // Check if users exist
   const users = await getUsers();
+  console.log(`[DB Init] Storage: ${storageMode}, Users found: ${users.length}`);
+
+  // Migrate old users: ensure shopPoints and defendedProblems are set
+  let needsSave = false;
+  for (const user of users) {
+    if (user.role === 'student') {
+      const student = user as Student;
+      if (student.shopPoints === undefined || student.shopPoints === null) {
+        // Calculate shopPoints: points minus spent on purchases
+        let spentPoints = 0;
+        for (const itemId of student.purchasedItems || []) {
+          const item = shopItems.find(i => i.id === itemId);
+          if (item) spentPoints += item.price;
+        }
+        student.shopPoints = Math.max(0, (student.points || 0) - spentPoints);
+        console.log(`[DB Init] Migrated shopPoints for ${student.name}: ${student.shopPoints}`);
+        needsSave = true;
+      }
+      // Initialize defendedProblems if not set
+      if (student.defendedProblems === undefined) {
+        student.defendedProblems = [];
+        needsSave = true;
+      }
+    }
+  }
+  if (needsSave) {
+    await setData('users', users);
+    console.log('[DB Init] Saved migrated users');
+  }
+
   if (users.length === 0) {
+    console.log('[DB Init] No users found, creating default data...');
     // Create default teacher
     const teacher: Teacher = {
       id: 'teacher-1',
@@ -478,6 +809,7 @@ export async function initializeDatabase(): Promise<void> {
       grade: s.grade,
       completedProblems: [],
       points: 0,
+      shopPoints: 0,
       achievements: [],
       streakDays: 0,
       lastActiveAt: new Date(),
@@ -485,6 +817,7 @@ export async function initializeDatabase(): Promise<void> {
       purchasedItems: [],
       equippedAvatar: null,
       equippedFrame: null,
+      defendedProblems: [],
     }));
 
     await setData('users', [teacher, ...students]);
@@ -516,6 +849,10 @@ export async function deleteUser(id: string): Promise<boolean> {
 }
 
 function getDefaultTopics(): Topic[] {
+  return defaultTopicsData;
+}
+
+function getDefaultTopics_OLD(): Topic[] {
   return [
     {
       id: 'variables',
@@ -1491,244 +1828,89 @@ print(x)  # None
 }
 
 function getDefaultProblems(): Problem[] {
-  return [
-    {
-      id: 'var-1',
-      topicId: 'variables',
-      title: 'Hello Variable',
-      titleRu: 'Привет, переменная',
-      description: 'Create a variable and print it',
-      descriptionRu: 'Создайте переменную message со значением "Hello" и выведите её',
-      difficulty: 'easy',
-      points: 10,
-      order: 1,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Создайте переменную message и выведите её\n',
-      solution: 'message = "Hello"\nprint(message)',
-      hints: ['Используйте = для присваивания'],
-      testCases: [{ id: 'tc1', input: '', expectedOutput: 'Hello', isHidden: false }]
-    },
-    {
-      id: 'var-2',
-      topicId: 'variables',
-      title: 'Sum Two Numbers',
-      titleRu: 'Сумма двух чисел',
-      description: 'Read two numbers and print their sum',
-      descriptionRu: 'Прочитайте два числа и выведите их сумму',
-      difficulty: 'easy',
-      points: 10,
-      order: 2,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Прочитайте два числа и выведите их сумму\n',
-      solution: 'a = int(input())\nb = int(input())\nprint(a + b)',
-      hints: ['int() преобразует строку в число'],
-      testCases: [
-        { id: 'tc1', input: '5\n3', expectedOutput: '8', isHidden: false },
-        { id: 'tc2', input: '10\n20', expectedOutput: '30', isHidden: false }
-      ]
-    },
-    {
-      id: 'var-3',
-      topicId: 'variables',
-      title: 'Rectangle Area',
-      titleRu: 'Площадь прямоугольника',
-      description: 'Calculate rectangle area',
-      descriptionRu: 'Вычислите площадь прямоугольника',
-      difficulty: 'easy',
-      points: 15,
-      order: 3,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Прочитайте ширину и высоту\n',
-      solution: 'w = int(input())\nh = int(input())\nprint(w * h)',
-      hints: ['Площадь = ширина × высота'],
-      testCases: [
-        { id: 'tc1', input: '5\n3', expectedOutput: '15', isHidden: false },
-        { id: 'tc2', input: '10\n10', expectedOutput: '100', isHidden: false }
-      ]
-    },
-    {
-      id: 'io-1',
-      topicId: 'input-output',
-      title: 'Greeting',
-      titleRu: 'Приветствие',
-      description: 'Read name and greet',
-      descriptionRu: 'Выведите приветствие',
-      difficulty: 'easy',
-      points: 10,
-      order: 1,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Выведите "Hello, <имя>!"\n',
-      solution: 'name = input()\nprint(f"Hello, {name}!")',
-      hints: ['Используйте f-строки'],
-      testCases: [
-        { id: 'tc1', input: 'World', expectedOutput: 'Hello, World!', isHidden: false }
-      ]
-    },
-    {
-      id: 'io-2',
-      topicId: 'input-output',
-      title: 'Double',
-      titleRu: 'Удвоение',
-      description: 'Double the number',
-      descriptionRu: 'Удвойте число',
-      difficulty: 'easy',
-      points: 10,
-      order: 2,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Удвойте число\n',
-      solution: 'n = int(input())\nprint(n * 2)',
-      hints: ['Умножьте на 2'],
-      testCases: [
-        { id: 'tc1', input: '5', expectedOutput: '10', isHidden: false }
-      ]
-    },
-    {
-      id: 'cond-1',
-      topicId: 'conditions',
-      title: 'Even or Odd',
-      titleRu: 'Чётное или нечётное',
-      description: 'Check if number is even or odd',
-      descriptionRu: 'Проверьте чётность',
-      difficulty: 'easy',
-      points: 10,
-      order: 1,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Выведите "even" или "odd"\n',
-      solution: 'n = int(input())\nif n % 2 == 0:\n    print("even")\nelse:\n    print("odd")',
-      hints: ['% даёт остаток от деления'],
-      testCases: [
-        { id: 'tc1', input: '4', expectedOutput: 'even', isHidden: false },
-        { id: 'tc2', input: '7', expectedOutput: 'odd', isHidden: false }
-      ]
-    },
-    {
-      id: 'cond-2',
-      topicId: 'conditions',
-      title: 'Maximum',
-      titleRu: 'Максимум',
-      description: 'Find maximum',
-      descriptionRu: 'Найдите максимум',
-      difficulty: 'easy',
-      points: 10,
-      order: 2,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Выведите большее число\n',
-      solution: 'a = int(input())\nb = int(input())\nif a > b:\n    print(a)\nelse:\n    print(b)',
-      hints: ['Сравните a и b'],
-      testCases: [
-        { id: 'tc1', input: '5\n3', expectedOutput: '5', isHidden: false },
-        { id: 'tc2', input: '10\n20', expectedOutput: '20', isHidden: false }
-      ]
-    },
-    {
-      id: 'loop-1',
-      topicId: 'loops',
-      title: 'Count to N',
-      titleRu: 'Счёт до N',
-      description: 'Print 1 to N',
-      descriptionRu: 'Выведите от 1 до N',
-      difficulty: 'easy',
-      points: 10,
-      order: 1,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Выведите числа от 1 до N\n',
-      solution: 'n = int(input())\nfor i in range(1, n + 1):\n    print(i)',
-      hints: ['range(1, n+1)'],
-      testCases: [
-        { id: 'tc1', input: '5', expectedOutput: '1\n2\n3\n4\n5', isHidden: false }
-      ]
-    },
-    {
-      id: 'loop-2',
-      topicId: 'loops',
-      title: 'Sum 1 to N',
-      titleRu: 'Сумма от 1 до N',
-      description: 'Sum from 1 to N',
-      descriptionRu: 'Сумма от 1 до N',
-      difficulty: 'easy',
-      points: 15,
-      order: 2,
-      grades: [7, 8, 9, 10],
-      starterCode: '# Выведите сумму\n',
-      solution: 'n = int(input())\ntotal = 0\nfor i in range(1, n + 1):\n    total += i\nprint(total)',
-      hints: ['Накапливайте сумму'],
-      testCases: [
-        { id: 'tc1', input: '5', expectedOutput: '15', isHidden: false },
-        { id: 'tc2', input: '10', expectedOutput: '55', isHidden: false }
-      ]
-    },
-    {
-      id: 'list-1',
-      topicId: 'lists',
-      title: 'List Sum',
-      titleRu: 'Сумма списка',
-      description: 'Sum all elements',
-      descriptionRu: 'Просуммируйте элементы',
-      difficulty: 'easy',
-      points: 10,
-      order: 1,
-      grades: [8, 9, 10],
-      starterCode: '# Числа через пробел\n',
-      solution: 'nums = list(map(int, input().split()))\nprint(sum(nums))',
-      hints: ['split() разделяет строку'],
-      testCases: [
-        { id: 'tc1', input: '1 2 3 4 5', expectedOutput: '15', isHidden: false }
-      ]
-    },
-    {
-      id: 'list-2',
-      topicId: 'lists',
-      title: 'Find Max',
-      titleRu: 'Найти максимум',
-      description: 'Find maximum',
-      descriptionRu: 'Найдите максимум',
-      difficulty: 'easy',
-      points: 10,
-      order: 2,
-      grades: [8, 9, 10],
-      starterCode: '# Найдите максимум\n',
-      solution: 'nums = list(map(int, input().split()))\nm = nums[0]\nfor n in nums:\n    if n > m:\n        m = n\nprint(m)',
-      hints: ['Сравнивайте с текущим максимумом'],
-      testCases: [
-        { id: 'tc1', input: '3 1 4 1 5 9', expectedOutput: '9', isHidden: false }
-      ]
-    },
-    {
-      id: 'func-1',
-      topicId: 'functions',
-      title: 'Double Function',
-      titleRu: 'Функция удвоения',
-      description: 'Create double function',
-      descriptionRu: 'Создайте функцию',
-      difficulty: 'easy',
-      points: 10,
-      order: 1,
-      grades: [8, 9, 10],
-      starterCode: '# Создайте функцию double(n)\n',
-      solution: 'def double(n):\n    return n * 2\n\nn = int(input())\nprint(double(n))',
-      hints: ['Используйте return'],
-      testCases: [
-        { id: 'tc1', input: '5', expectedOutput: '10', isHidden: false }
-      ]
-    },
-    {
-      id: 'func-2',
-      topicId: 'functions',
-      title: 'Palindrome',
-      titleRu: 'Палиндром',
-      description: 'Check palindrome',
-      descriptionRu: 'Проверьте палиндром',
-      difficulty: 'medium',
-      points: 20,
-      order: 2,
-      grades: [8, 9, 10],
-      starterCode: '# Функция is_palindrome(s)\n',
-      solution: 'def is_palindrome(s):\n    return s == s[::-1]\n\ns = input()\nprint("yes" if is_palindrome(s) else "no")',
-      hints: ['s[::-1] разворачивает строку'],
-      testCases: [
-        { id: 'tc1', input: 'radar', expectedOutput: 'yes', isHidden: false },
-        { id: 'tc2', input: 'hello', expectedOutput: 'no', isHidden: false }
-      ]
+  return defaultProblemsData;
+}
+
+// ==================== RANK TRACKING ====================
+// Обновляет previousRank для всех студентов на основе текущего рейтинга
+// force=true - принудительное обновление (перед решением задачи)
+// force=false - обновление только если прошло 24+ часов (при первом входе)
+export async function updateRankSnapshots(grade?: number, force: boolean = true): Promise<{ updated: number }> {
+  const users = await getUsers();
+  const students = users.filter((u): u is Student => u.role === 'student');
+
+  // Фильтруем по классу если указан
+  const filteredStudents = grade
+    ? students.filter(s => s.grade === grade)
+    : students;
+
+  // Сортируем по баллам
+  const sortedStudents = [...filteredStudents].sort((a, b) => b.points - a.points);
+
+  // Создаём карту текущих рангов
+  const rankMap = new Map<string, number>();
+  sortedStudents.forEach((student, index) => {
+    rankMap.set(student.id, index + 1);
+  });
+
+  // Обновляем previousRank для каждого студента
+  const now = new Date();
+  let updated = 0;
+
+  for (const user of users) {
+    if (user.role === 'student') {
+      const student = user as Student;
+      const currentRank = rankMap.get(student.id);
+
+      if (currentRank !== undefined) {
+        // Если force=true - всегда обновляем
+        // Если force=false - обновляем только если previousRank не установлен или прошло 24+ часов
+        const lastUpdate = student.rankUpdatedAt ? new Date(student.rankUpdatedAt) : null;
+        const hoursSinceUpdate = lastUpdate
+          ? (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60)
+          : 999;
+
+        const shouldUpdate = force || student.previousRank === undefined || hoursSinceUpdate >= 24;
+
+        if (shouldUpdate) {
+          student.previousRank = currentRank;
+          student.rankUpdatedAt = now;
+          updated++;
+        }
+      }
     }
-  ];
+  }
+
+  if (updated > 0) {
+    await setData('users', users);
+    console.log(`[Rank] Updated ${updated} student rank snapshots (force=${force})`);
+  }
+
+  return { updated };
+}
+
+// Получить изменение позиции для студента
+export async function getRankChange(studentId: string, grade?: number): Promise<{ currentRank: number; previousRank: number | null; change: number | null }> {
+  const students = await getStudents();
+
+  // Фильтруем по классу если указан
+  const filteredStudents = grade
+    ? students.filter(s => s.grade === grade)
+    : students;
+
+  // Сортируем по баллам
+  const sortedStudents = [...filteredStudents].sort((a, b) => b.points - a.points);
+
+  // Находим текущую позицию студента
+  const currentRank = sortedStudents.findIndex(s => s.id === studentId) + 1;
+  const student = students.find(s => s.id === studentId);
+
+  if (!student || currentRank === 0) {
+    return { currentRank: 0, previousRank: null, change: null };
+  }
+
+  const previousRank = student.previousRank ?? null;
+  const change = previousRank !== null ? previousRank - currentRank : null;
+
+  return { currentRank, previousRank, change };
 }

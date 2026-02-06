@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Progress from '@/components/ui/Progress';
 import { formatRelativeTime } from '@/lib/utils';
+import { getShopItemById } from '@/data/shop';
 import Link from 'next/link';
 import {
   Search,
@@ -185,9 +186,31 @@ export default function StudentsPage() {
                   >
                     {/* Student Info */}
                     <div className="col-span-4 flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                        {student.name.charAt(0)}
-                      </div>
+                      {(() => {
+                        const avatarItem = student.equippedAvatar ? getShopItemById(student.equippedAvatar) : null;
+                        const frameItem = student.equippedFrame ? getShopItemById(student.equippedFrame) : null;
+
+                        if (avatarItem) {
+                          return (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                              bg-gradient-to-br ${avatarItem.gradient || 'from-gray-600 to-gray-700'}
+                              ${frameItem?.borderColor || ''}
+                            `}>
+                              {avatarItem.image ? (
+                                <img src={avatarItem.image} alt={avatarItem.nameRu} className="w-8 h-8 object-contain" />
+                              ) : (
+                                <span className="text-lg">{avatarItem.emoji}</span>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                            {student.name.charAt(0)}
+                          </div>
+                        );
+                      })()}
                       <div>
                         <p className="text-white font-medium">{student.name}</p>
                         <p className="text-gray-400 text-sm">{student.email}</p>
