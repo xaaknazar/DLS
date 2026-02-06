@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import Sidebar from '@/components/layout/Sidebar';
+import Footer from '@/components/layout/Footer';
 
 export default function TeacherLayout({
   children,
@@ -26,11 +27,14 @@ export default function TeacherLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 flex flex-col">
       <Sidebar />
-      <main className="ml-64">
+      <main className="ml-64 flex-1">
         {children}
       </main>
+      <div className="ml-64">
+        <Footer />
+      </div>
     </div>
   );
 }
